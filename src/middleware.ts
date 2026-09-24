@@ -9,7 +9,7 @@ const intlMiddleware = createMiddleware({
   localePrefix: 'as-needed',
 });
 
-// List of public API endpoints that bypass session authentication
+// Public API endpoints that bypass session authentication
 const PUBLIC_API_PATHS = [
   '/api/auth/login',
   '/api/auth/register',
@@ -26,7 +26,6 @@ export default async function middleware(req: NextRequest) {
       return NextResponse.next();
     }
 
-    // Extract session token
     let token: string | null = null;
     const authHeader = req.headers.get('authorization');
     if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
@@ -55,7 +54,6 @@ export default async function middleware(req: NextRequest) {
       );
     }
 
-    // Role authorization check for Admin API endpoints
     if (pathname.startsWith('/api/admin') && session.role !== 'ADMIN') {
       return NextResponse.json(
         { success: false, error: 'Forbidden: Admin privilege required' },
@@ -68,11 +66,15 @@ export default async function middleware(req: NextRequest) {
 
   // 2. Handle Page Routes protection & next-intl locale routing
   const segments = pathname.split('/').filter(Boolean);
-  // Check if first segment is a supported locale (e.g. /en/admin, /es/leads)
   const isLocaleFirst = segments.length > 0 && (locales as readonly string[]).includes(segments[0]);
   const routePath = isLocaleFirst ? `/${segments.slice(1).join('/')}` : pathname;
   const currentLocale = isLocaleFirst ? segments[0] : defaultLocale;
 
+  const cookie = req.cookies.get(AUTH_COOKIE_NAME);
+  const token = cookie?.value;
+  const session = token ? await verifySessionToken(token) : null;
+
+  const isAuthPage = routePath === '/login' || routePath === '/register';
   const isProtectedPage =
     routePath.startsWith('/leads') ||
     routePath.startsWith('/campaigns') ||
@@ -80,22 +82,25 @@ export default async function middleware(req: NextRequest) {
     routePath.startsWith('/analytics') ||
     routePath.startsWith('/admin');
 
-  if (isProtectedPage) {
-    const cookie = req.cookies.get(AUTH_COOKIE_NAME);
-    const token = cookie?.value;
-    const session = token ? await verifySessionToken(token) : null;
+  // If already logged in and visiting login/register -> redirect to analytics
+  if (isAuthPage && session) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/${currentLocale}/analytics`;
+    return NextResponse.redirect(url);
+  }
 
-    if (!session) {
-      const url = req.nextUrl.clone();
-      url.pathname = `/${currentLocale}`;
-      return NextResponse.redirect(url);
-    }
+  // If visiting protected page without session -> redirect to login
+  if (isProtectedPage && !session) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/${currentLocale}/login`;
+    return NextResponse.redirect(url);
+  }
 
-    if (routePath.startsWith('/admin') && session.role !== 'ADMIN') {
-      const url = req.nextUrl.clone();
-      url.pathname = `/${currentLocale}/analytics`;
-      return NextResponse.redirect(url);
-    }
+  // Admin page protection check
+  if (isProtectedPage && routePath.startsWith('/admin') && session?.role !== 'ADMIN') {
+    const url = req.nextUrl.clone();
+    url.pathname = `/${currentLocale}/analytics`;
+    return NextResponse.redirect(url);
   }
 
   // Execute next-intl middleware for page routing

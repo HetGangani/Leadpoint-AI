@@ -38,19 +38,24 @@ export default function HomePage() {
         {/* Hero CTA Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-4 mb-16">
           <Link
-            href={`/${locale}/analytics`}
+            href={`/${locale}/login`}
             className="inline-flex items-center space-x-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm shadow-xl shadow-blue-500/25 transition transform hover:-translate-y-0.5"
           >
-            <BarChart3 className="h-4 w-4" />
-            <span>Open Sales Analytics & Kanban</span>
+            <span>Sign In to Dashboard</span>
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href={`/${locale}/admin`}
+            href={`/${locale}/register`}
             className="inline-flex items-center space-x-2.5 px-6 py-3.5 rounded-2xl bg-slate-900 border border-slate-700 hover:border-blue-500 text-slate-200 hover:text-white font-semibold text-sm shadow-xl transition transform hover:-translate-y-0.5"
           >
-            <ShieldCheck className="h-4 w-4 text-amber-400" />
-            <span>Access Superadmin Portal</span>
+            <span>Register New Account</span>
+          </Link>
+          <Link
+            href={`/${locale}/analytics`}
+            className="inline-flex items-center space-x-2.5 px-6 py-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-semibold text-sm shadow-xl transition transform hover:-translate-y-0.5"
+          >
+            <BarChart3 className="h-4 w-4 text-blue-400" />
+            <span>Sales Analytics & Kanban</span>
           </Link>
         </div>
 

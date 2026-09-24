@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -12,6 +12,9 @@ import {
   ShieldCheck,
   Menu,
   X,
+  LogIn,
+  LogOut,
+  User,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 
@@ -20,6 +23,38 @@ export default function Navbar() {
   const pathname = usePathname();
   const t = useTranslations('Nav');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data?.user) {
+            setUser(data.data.user);
+          }
+        }
+      } catch {
+        setUser(null);
+      } finally {
+        setAuthChecked(true);
+      }
+    }
+    checkAuth();
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      setUser(null);
+      window.location.href = `/${locale}/login`;
+    } catch {
+      window.location.href = `/${locale}/login`;
+    }
+  };
 
   const navLinks = [
     {
@@ -103,9 +138,49 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Right Actions & Language Switcher */}
+          {/* Right Actions & Auth / Language Switcher */}
           <div className="flex items-center space-x-3">
             <LanguageSwitcher />
+
+            {authChecked && (
+              <>
+                {user ? (
+                  <div className="hidden sm:flex items-center space-x-3 pl-2 border-l border-slate-800">
+                    <div className="flex items-center space-x-2 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300">
+                      <User className="h-3.5 w-3.5 text-blue-400" />
+                      <span className="font-semibold text-white max-w-[120px] truncate">{user.name}</span>
+                      <span className="text-[10px] font-mono px-1 rounded bg-slate-800 text-slate-400 uppercase">
+                        {user.role}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-semibold transition"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="hidden sm:flex items-center space-x-2 pl-2 border-l border-slate-800">
+                    <Link
+                      href={`/${locale}/login`}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition"
+                    >
+                      <LogIn className="h-3.5 w-3.5 text-blue-400" />
+                      <span>Sign In</span>
+                    </Link>
+                    <Link
+                      href={`/${locale}/register`}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md transition"
+                    >
+                      <span>Register</span>
+                    </Link>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Mobile Hamburger Button */}
             <button
@@ -121,7 +196,7 @@ export default function Navbar() {
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-slate-950 border-b border-slate-800 px-4 pt-2 pb-4 space-y-1.5 animate-in slide-in-from-top-2 duration-150">
+        <div className="md:hidden bg-slate-950 border-b border-slate-800 px-4 pt-2 pb-4 space-y-2 animate-in slide-in-from-top-2 duration-150">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const active = isActive(link.href);
@@ -148,6 +223,37 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          <div className="pt-2 border-t border-slate-800/80">
+            {user ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Sign Out ({user.name})</span>
+              </button>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href={`/${locale}/login`}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center space-x-1.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-sm font-medium"
+                >
+                  <LogIn className="h-4 w-4 text-blue-400" />
+                  <span>Sign In</span>
+                </Link>
+                <Link
+                  href={`/${locale}/register`}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center space-x-1.5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium"
+                >
+                  <span>Register</span>
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </header>
