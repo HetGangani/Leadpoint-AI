@@ -1,27 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/auth';
 import { VoiceCallWebhookPayload, CallDisposition, CallWebhookResult } from '@/types';
 
 export async function POST(req: NextRequest) {
   try {
-    const body: VoiceCallWebhookPayload = await req.json();
+    const session = await getSessionUser(req);
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
+    const body: VoiceCallWebhookPayload = await req.json();
     const { leadId, campaignId, durationSeconds, transcript, audioUrl, manualDisposition } = body;
 
     if (!leadId) {
-      return NextResponse.json({ error: 'leadId is required.' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'leadId is required.' }, { status: 400 });
     }
 
-    // Fetch lead details from Prisma
     const lead = await prisma.lead.findUnique({
       where: { id: leadId },
     });
 
     if (!lead) {
-      return NextResponse.json({ error: `Lead with ID ${leadId} not found.` }, { status: 404 });
+      return NextResponse.json({ success: false, error: `Lead with ID ${leadId} not found.` }, { status: 404 });
     }
 
-    // Format transcript string
+    // Tenant authorization check
+    let profileId = session.companyProfileId;
+    if (!profileId && session.role !== 'ADMIN') {
+      const profile = await prisma.companyProfile.findUnique({
+        where: { userId: session.id },
+      });
+      profileId = profile?.id;
+    }
+
+    if (session.role !== 'ADMIN' && lead.companyProfileId !== profileId) {
+      return NextResponse.json({ success: false, error: 'Forbidden: Access denied to lead belonging to another tenant' }, { status: 403 });
+    }
+
     let formattedTranscript = '';
     let rawTextArray: string[] = [];
 
@@ -39,7 +55,6 @@ export async function POST(req: NextRequest) {
 
     const fullTranscriptLower = rawTextArray.join(' ').toLowerCase();
 
-    // Affirmation keywords for auto-flagging High Intent
     const affirmationKeywords = [
       'yes', 'interested', 'budget approved', 'start next month', 'schedule a demo',
       'send proposal', 'send contract', 'we need this', 'looking for vendor', 'hire us',
@@ -50,7 +65,6 @@ export async function POST(req: NextRequest) {
 
     const isAffirmed = affirmationKeywords.some(kw => fullTranscriptLower.includes(kw));
 
-    // Determine Call Disposition
     let disposition: CallDisposition = manualDisposition || CallDisposition.INTERESTED;
 
     if (isAffirmed) {
@@ -61,7 +75,6 @@ export async function POST(req: NextRequest) {
       disposition = CallDisposition.VOICEMAIL;
     }
 
-    // Determine Sentiment
     let sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = 'NEUTRAL';
     if (isAffirmed || disposition === CallDisposition.INTERESTED) {
       sentiment = 'POSITIVE';
@@ -69,7 +82,6 @@ export async function POST(req: NextRequest) {
       sentiment = 'NEGATIVE';
     }
 
-    // Auto-flag Lead Status in DB if prospect affirmed project requirement
     let updatedLeadStatus = lead.status;
     let isHighIntentFlagged = false;
 
@@ -85,7 +97,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Generate bulleted summary
     const summaryBulletPoints = [
       `• Executed voice discovery call with ${lead.name} (${lead.companyName}, ${lead.industry}).`,
       isAffirmed
@@ -100,7 +111,6 @@ export async function POST(req: NextRequest) {
 
     const summaryText = summaryBulletPoints.join('\n');
 
-    // Determine Next Best Action
     let nextBestAction = 'Send follow-up introduction email with company overview deck.';
     if (isAffirmed) {
       nextBestAction = '🔥 HIGH INTENT: Send calendar invite for 20-min Solution Architecture Demo & draft preliminary proposal.';
@@ -110,7 +120,6 @@ export async function POST(req: NextRequest) {
       nextBestAction = 'Trigger automated Email Drip Sequence #1 for unreached prospects.';
     }
 
-    // Write VoiceCall log to Database
     const voiceCall = await prisma.voiceCall.create({
       data: {
         leadId,
@@ -146,7 +155,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in /api/voice/call-webhook:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to process voice call webhook' },
+      { success: false, error: error.message || 'Failed to process voice call webhook' },
       { status: 500 }
     );
   }

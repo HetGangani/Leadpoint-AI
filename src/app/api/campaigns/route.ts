@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/auth';
 import { CampaignCreatePayload } from '@/types';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const session = await getSessionUser(req);
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const whereClause: any = {};
+    if (session.role !== 'ADMIN') {
+      whereClause.userId = session.id;
+    }
+
     const campaigns = await prisma.campaign.findMany({
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
         voiceCalls: true,
@@ -32,28 +44,27 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error('Error fetching campaigns:', error);
-    return NextResponse.json({ error: 'Failed to fetch campaigns' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message || 'Failed to fetch campaigns' }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSessionUser(req);
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body: CampaignCreatePayload = await req.json();
 
     if (!body.name || !body.type) {
-      return NextResponse.json({ error: 'Campaign name and type are required.' }, { status: 400 });
-    }
-
-    // Default to first user in database
-    const user = await prisma.user.findFirst();
-    if (!user) {
-      return NextResponse.json({ error: 'No default user found in system.' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Campaign name and type are required.' }, { status: 400 });
     }
 
     const newCampaign = await prisma.campaign.create({
       data: {
-        userId: user.id,
-        name: body.name,
+        userId: session.id,
+        name: body.name.trim(),
         type: body.type,
         scheduleCron: body.scheduleCron || '0 9 * * 1-5',
         timezone: body.timezone || 'America/New_York',
@@ -68,6 +79,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error creating campaign:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create campaign' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message || 'Failed to create campaign' }, { status: 500 });
   }
 }

@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server';
 import { harvestPublicRequirements } from '@/lib/lead-service';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    let profileId = session.companyProfileId;
+    if (!profileId) {
+      const profile = await prisma.companyProfile.findUnique({
+        where: { userId: session.id },
+      });
+      profileId = profile?.id;
+    }
+
     const body = await request.json().catch(() => ({}));
     const { platform, keywords, industry } = body;
 
@@ -13,8 +30,10 @@ export async function POST(request: Request) {
       industry,
     });
 
-    // Also fetch current leads in system to return updated state
+    const whereClause = profileId ? { companyProfileId: profileId } : {};
+
     const allLeads = await prisma.lead.findMany({
+      where: whereClause,
       orderBy: { relevanceScore: 'desc' },
       take: 50,
     });
@@ -34,9 +53,34 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    let profileId = session.companyProfileId;
+    if (!profileId && session.role !== 'ADMIN') {
+      const profile = await prisma.companyProfile.findUnique({
+        where: { userId: session.id },
+      });
+      profileId = profile?.id;
+    }
+
+    const whereClause: any = {};
+    if (session.role !== 'ADMIN' || profileId) {
+      if (!profileId) {
+        return NextResponse.json({ success: true, data: [] });
+      }
+      whereClause.companyProfileId = profileId;
+    }
+
     const leads = await prisma.lead.findMany({
+      where: whereClause,
       orderBy: { relevanceScore: 'desc' },
     });
 

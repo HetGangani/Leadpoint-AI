@@ -1,9 +1,49 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    let profileId = session.companyProfileId;
+    if (!profileId && session.role !== 'ADMIN') {
+      const profile = await prisma.companyProfile.findUnique({
+        where: { userId: session.id },
+      });
+      profileId = profile?.id;
+    }
+
+    const whereClause: any = {};
+    if (session.role !== 'ADMIN' || profileId) {
+      if (!profileId) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            metrics: {
+              totalLeads: 0,
+              qualifiedOrInterestedCount: 0,
+              conversionRate: 0,
+              minutesUsed: 0,
+              minutesLimit: 1000,
+              channelBreakdown: [],
+            },
+            kanbanColumns: { NEW: [], QUALIFIED: [], CONTACTED: [], INTERESTED: [], UNRESPONSIVE: [] },
+            leads: [],
+          },
+        });
+      }
+      whereClause.companyProfileId = profileId;
+    }
+
     const leads = await prisma.lead.findMany({
+      where: whereClause,
       include: {
         voiceCalls: true,
         companyProfile: true,
@@ -15,7 +55,6 @@ export async function GET() {
 
     const totalLeads = leads.length;
 
-    // Qualified or Interested leads count
     const qualifiedOrInterestedCount = leads.filter(
       (l) => l.status === 'QUALIFIED' || l.status === 'INTERESTED'
     ).length;
@@ -24,15 +63,14 @@ export async function GET() {
       ? Math.round((qualifiedOrInterestedCount / totalLeads) * 100)
       : 0;
 
-    // Fetch subscription usage for voice minutes consumed
     const subscriptionUsage = await prisma.subscriptionUsage.findFirst({
+      where: session.role === 'ADMIN' ? {} : { userId: session.id },
       orderBy: { updatedAt: 'desc' },
     });
 
-    const minutesUsed = subscriptionUsage?.minutesUsed ?? 145;
+    const minutesUsed = subscriptionUsage?.minutesUsed ?? 0;
     const minutesLimit = subscriptionUsage?.minutesLimit ?? 1000;
 
-    // Channel breakdown
     const channelCounts: Record<string, number> = {};
     leads.forEach((lead) => {
       const platform = lead.sourcePlatform || 'LinkedIn';
@@ -45,7 +83,6 @@ export async function GET() {
       percentage: totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0,
     }));
 
-    // Group leads by status for Kanban columns
     const kanbanColumns = {
       NEW: leads.filter((l) => l.status === 'NEW'),
       QUALIFIED: leads.filter((l) => l.status === 'QUALIFIED'),

@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser, isAdmin, sanitizeUser } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!isAdmin(session.role)) {
+      return NextResponse.json({ success: false, error: 'Forbidden: Admin access required' }, { status: 403 });
+    }
+
     const startTime = Date.now();
-    // Test DB query latency
     const userCount = await prisma.user.count();
     const dbLatencyMs = Date.now() - startTime;
 
-    // Fetch subscription usage
     const subscriptionUsage = await prisma.subscriptionUsage.findFirst({
       orderBy: { updatedAt: 'desc' },
       include: {
@@ -16,15 +24,13 @@ export async function GET() {
       },
     });
 
-    // Fetch total active subscriptions by plan
     const subscriptions = await prisma.subscription.findMany();
     const planCounts = {
       STARTER: subscriptions.filter((s) => s.plan === 'STARTER').length,
-      GROWTH: subscriptions.filter((s) => s.plan === 'GROWTH').length + 1, // seed default
+      GROWTH: subscriptions.filter((s) => s.plan === 'GROWTH').length,
       ENTERPRISE: subscriptions.filter((s) => s.plan === 'ENTERPRISE').length,
     };
 
-    // System Health Status
     const systemHealth = {
       dbLatency: `${dbLatencyMs} ms`,
       dbStatus: 'Healthy',
@@ -34,7 +40,6 @@ export async function GET() {
       totalRegisteredUsers: userCount,
     };
 
-    // Voice Usage Meter
     const voiceUsage = {
       plan: subscriptionUsage?.plan || 'GROWTH',
       minutesUsed: subscriptionUsage?.minutesUsed ?? 145,
@@ -44,7 +49,6 @@ export async function GET() {
       billingCycleEnd: subscriptionUsage?.billingCycleEnd || new Date('2026-10-31'),
     };
 
-    // Subscription Tiers Overview
     const subscriptionTiers = [
       {
         id: 'STARTER',
@@ -76,7 +80,6 @@ export async function GET() {
       },
     ];
 
-    // Fraud & Abuse Detection Alerts
     const fraudAlerts = [
       {
         id: 'fraud-1',
@@ -104,7 +107,6 @@ export async function GET() {
       },
     ];
 
-    // Security Audit Logs
     const auditLogs = await prisma.auditLog.findMany({
       include: {
         user: true,
@@ -115,6 +117,11 @@ export async function GET() {
       take: 50,
     });
 
+    const sanitizedAuditLogs = auditLogs.map((log) => ({
+      ...log,
+      user: sanitizeUser(log.user),
+    }));
+
     return NextResponse.json({
       success: true,
       data: {
@@ -122,7 +129,7 @@ export async function GET() {
         voiceUsage,
         subscriptionTiers,
         fraudAlerts,
-        auditLogs,
+        auditLogs: sanitizedAuditLogs,
       },
     });
   } catch (error: any) {

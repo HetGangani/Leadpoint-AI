@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { companyUrl, description, companyName } = body;
 
@@ -15,8 +21,6 @@ export async function POST(request: Request) {
 
     const inputContent = `${companyName ? `Company: ${companyName}\n` : ''}${companyUrl ? `URL: ${companyUrl}\n` : ''}${description ? `Description: ${description}` : ''}`;
 
-    // LLM Agent Prompt Analysis Engine
-    // Extracts Value Props, ICP, and Intent Search Query Triggers
     let valuePropositions: Array<{ title: string; description: string; impact: string }> = [];
     let targetClientICP: {
       industries: string[];
@@ -26,7 +30,6 @@ export async function POST(request: Request) {
     };
     let searchQueryTriggers: string[] = [];
 
-    // Analyze content with domain-aware intelligence
     const isSharePointOrM365 = /sharepoint|m365|microsoft 365|azure|tenant|cloud/i.test(inputContent);
     const isHealthcare = /health|hipaa|medical|hospital/i.test(inputContent);
     const isFintech = /fintech|bank|financial|sec|finra/i.test(inputContent);
@@ -74,7 +77,6 @@ export async function POST(request: Request) {
         'M365 Purview DLP compliance consulting',
       ];
     } else {
-      // General IT / B2B SaaS fallback extraction
       valuePropositions = [
         {
           title: 'Enterprise AI & Automation Sourcing',
@@ -106,8 +108,10 @@ export async function POST(request: Request) {
       ];
     }
 
-    // Retrieve existing profile or create one
-    let profile = await prisma.companyProfile.findFirst();
+    // Retrieve existing profile for session user or create one
+    let profile = await prisma.companyProfile.findUnique({
+      where: { userId: session.id },
+    });
 
     if (profile) {
       profile = await prisma.companyProfile.update({
@@ -131,17 +135,12 @@ export async function POST(request: Request) {
         },
       });
     } else {
-      const defaultUser = await prisma.user.findFirst();
-      if (!defaultUser) {
-        return NextResponse.json({ success: false, error: 'No user account found.' }, { status: 400 });
-      }
-
       profile = await prisma.companyProfile.create({
         data: {
-          userId: defaultUser.id,
-          name: companyName || 'SharePoint & M365 IT Consulting',
-          website: companyUrl || 'https://www.cloudscaleconsulting.example.com',
-          description: description || 'Enterprise IT consulting firm specializing in SharePoint Server to SharePoint Online modernizations.',
+          userId: session.id,
+          name: companyName || `${session.name}'s Consulting Group`,
+          website: companyUrl || 'https://www.example.com',
+          description: description || 'Enterprise IT consulting firm.',
           targetKeywords: JSON.stringify(searchQueryTriggers),
           offerings: JSON.stringify({
             services: valuePropositions.map((vp, index) => ({

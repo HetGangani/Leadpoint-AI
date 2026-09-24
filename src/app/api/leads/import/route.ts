@@ -1,8 +1,33 @@
 import { NextResponse } from 'next/server';
 import { processAndImportLeads, CSVLeadInput } from '@/lib/lead-service';
+import { getSessionUser } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    let targetProfileId = session.companyProfileId;
+    if (!targetProfileId) {
+      const profile = await prisma.companyProfile.findUnique({
+        where: { userId: session.id },
+      });
+      targetProfileId = profile?.id;
+    }
+
+    if (!targetProfileId) {
+      return NextResponse.json(
+        { success: false, error: 'No company profile exists for authenticated user.' },
+        { status: 400 }
+      );
+    }
+
     const contentType = request.headers.get('content-type') || '';
     let leads: CSVLeadInput[] = [];
 
@@ -13,22 +38,24 @@ export async function POST(request: Request) {
       } else if (Array.isArray(body)) {
         leads = body;
       } else {
-        return NextResponse.json({ success: false, error: 'JSON payload must contain a "leads" array or an array of leads.' }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: 'JSON payload must contain a "leads" array or an array of leads.' },
+          { status: 400 }
+        );
       }
-    } else if (contentType.includes('text/csv') || contentType.includes('multipart/form-data')) {
-      const text = await request.text();
-      leads = parseCSVToLeadInputs(text);
     } else {
-      // Fallback text parsing
       const text = await request.text();
       leads = parseCSVToLeadInputs(text);
     }
 
     if (!leads || leads.length === 0) {
-      return NextResponse.json({ success: false, error: 'No valid lead rows provided in import request.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'No valid lead rows provided in import request.' },
+        { status: 400 }
+      );
     }
 
-    const result = await processAndImportLeads(leads);
+    const result = await processAndImportLeads(leads, targetProfileId);
 
     return NextResponse.json({
       success: true,
@@ -43,9 +70,6 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * Basic CSV text line parsing helper
- */
 function parseCSVToLeadInputs(csvText: string): CSVLeadInput[] {
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
@@ -72,7 +96,6 @@ function parseCSVToLeadInputs(csvText: string): CSVLeadInput[] {
   const parsedLeads: CSVLeadInput[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    // Basic CSV splitting handling quotes
     const rawLine = lines[i];
     const cells: string[] = [];
     let insideQuote = false;

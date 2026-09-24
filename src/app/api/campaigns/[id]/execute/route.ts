@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/auth';
 import { CallDisposition } from '@/types';
 
 export async function POST(
@@ -7,6 +8,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getSessionUser(req);
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const campaignId = params.id;
 
     const campaign = await prisma.campaign.findUnique({
@@ -14,27 +20,45 @@ export async function POST(
     });
 
     if (!campaign) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Campaign not found' }, { status: 404 });
     }
 
-    // Get leads for campaign (or harvest sample leads)
+    // Verify ownership
+    if (campaign.userId !== session.id && session.role !== 'ADMIN') {
+      return NextResponse.json({ success: false, error: 'Forbidden: You do not own this campaign' }, { status: 403 });
+    }
+
+    let profileId = session.companyProfileId;
+    if (!profileId && session.role !== 'ADMIN') {
+      const profile = await prisma.companyProfile.findUnique({
+        where: { userId: session.id },
+      });
+      profileId = profile?.id;
+    }
+
+    const leadWhere: any = {};
+    if (session.role !== 'ADMIN' || profileId) {
+      if (profileId) {
+        leadWhere.companyProfileId = profileId;
+      }
+    }
+
+    // Get leads for campaign (scoped to tenant)
     const leads = await prisma.lead.findMany({
+      where: leadWhere,
       take: 5,
       orderBy: { createdAt: 'desc' },
     });
 
     if (leads.length === 0) {
-      return NextResponse.json({ error: 'No leads available to call in campaign' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'No leads available to call in campaign' }, { status: 400 });
     }
 
     const executedCalls = [];
 
-    // Batch process calls with retry logic simulation
     for (let i = 0; i < leads.length; i++) {
       const lead = leads[i];
 
-      // Simulate disposition outcome
-      // Some calls succeed, some hit busy/voicemail to demonstrate retry loop
       const outcomes = [CallDisposition.INTERESTED, CallDisposition.BUSY, CallDisposition.VOICEMAIL, CallDisposition.INTERESTED];
       const outcome = outcomes[i % outcomes.length];
 
@@ -50,7 +74,6 @@ export async function POST(
         transcript = `[00:00] AI Agent: "Hello ${lead.name}, Alex calling from CloudScale AI."\n[00:15] ${lead.name}: "Hi Alex, we are actually looking for an architecture team right now!"\n[00:40] AI Agent: "Fantastic! I'll send over our schedule link."`;
         nextBestAction = '🔥 HIGH INTENT: Schedule 20-min Architecture Demo & Send Proposal';
 
-        // Auto-flag Lead in DB
         await prisma.lead.update({
           where: { id: lead.id },
           data: { status: 'INTERESTED' },
@@ -89,7 +112,6 @@ export async function POST(
       });
     }
 
-    // Update campaign status
     await prisma.campaign.update({
       where: { id: campaign.id },
       data: { status: 'COMPLETED' },
@@ -102,6 +124,6 @@ export async function POST(
     });
   } catch (error: any) {
     console.error('Error executing campaign:', error);
-    return NextResponse.json({ error: error.message || 'Failed to execute campaign' }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message || 'Failed to execute campaign' }, { status: 500 });
   }
 }

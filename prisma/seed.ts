@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -64,13 +65,16 @@ async function main() {
 
   console.log('🧹 Cleaned existing database records.');
 
+  // Hash default seed password using bcryptjs
+  const defaultPasswordHash = await bcrypt.hash('password123', 10);
+
   // 1. Create Users with RBAC and Encrypted API Keys
   const adminUser = await prisma.user.create({
     data: {
       email: 'admin@leadpoint.ai',
       name: 'Sarah Vance',
       role: UserRole.ADMIN,
-      passwordHash: '$2a$12$e8kZJ1pM/0/O38w408gW9uXyE1mE2e3u4i5o6p7q8r9s0t1u2v3w4', // Mock bcrypt hash
+      passwordHash: defaultPasswordHash,
       encryptedApiKey: 'enc_api_key_admin_9f8a3b2c1d4e5f6g7h8i9j0k',
     },
   });
@@ -80,7 +84,7 @@ async function main() {
       email: 'client@cloudscale-solutions.com',
       name: 'Michael Ross',
       role: UserRole.CLIENT,
-      passwordHash: '$2a$12$e8kZJ1pM/0/O38w408gW9uXyE1mE2e3u4i5o6p7q8r9s0t1u2v3w4',
+      passwordHash: defaultPasswordHash,
       encryptedApiKey: 'enc_api_key_client_1a2b3c4d5e6f7g8h9i0j1k2l',
     },
   });
@@ -90,7 +94,7 @@ async function main() {
       email: 'sdr@cloudscale-solutions.com',
       name: 'David Chen',
       role: UserRole.SDR,
-      passwordHash: '$2a$12$e8kZJ1pM/0/O38w408gW9uXyE1mE2e3u4i5o6p7q8r9s0t1u2v3w4',
+      passwordHash: defaultPasswordHash,
       encryptedApiKey: 'enc_api_key_sdr_3c4d5e6f7g8h9i0j1k2l3m4n',
     },
   });
