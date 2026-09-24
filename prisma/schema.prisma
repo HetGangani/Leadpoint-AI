@@ -1,0 +1,184 @@
+// Prisma schema for AI Sales Agent Platform (SQLite Local & PostgreSQL Compatible)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  name              String
+  role              String             @default("CLIENT") // ADMIN, CLIENT, SDR
+  passwordHash      String
+  encryptedApiKey   String?            // Encrypted platform API key for SDR / programmatic access
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  accounts          Account[]
+  companyProfile    CompanyProfile?
+  campaigns         Campaign[]
+  subscription      Subscription?
+  subscriptionUsage SubscriptionUsage?
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider              String    // e.g. "linkedin", "google", "retell", "openai"
+  providerAccountId     String
+  encryptedApiKey       String?   // Encrypted integration API key
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  expiresAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model CompanyProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  website          String
+  description      String
+  targetKeywords   String   // JSON array string of target keywords
+  vectorEmbedding  String?  // JSON vector embedding representation for semantic matching
+  validationStatus String   @default("PENDING") // APPROVED, PENDING, REJECTED
+  offerings        String   // JSON string of service offerings & value propositions
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  leads            Lead[]
+
+  @@index([userId])
+  @@index([validationStatus])
+}
+
+model Lead {
+  id               String         @id @default(cuid())
+  companyProfileId String
+  companyProfile   CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  name             String
+  businessEmail    String
+  phone            String?
+  linkedinUrl      String?
+  companyName      String
+  industry         String
+  companySize      String
+  sourcePlatform   String
+  originalPostUrl  String?
+  postContent      String?
+  relevanceScore   Float
+  status           String         @default("NEW") // NEW, QUALIFIED, CONTACTED, INTERESTED, UNRESPONSIVE
+  enrichedData     String         // JSON string containing funding, hiring, tech_stack
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  voiceCalls       VoiceCall[]
+
+  @@index([companyProfileId])
+  @@index([status])
+  @@index([relevanceScore])
+  @@index([businessEmail])
+}
+
+model Campaign {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  type         String      // CALLING_ONLY, LEADS_PLUS_CALLING
+  scheduleCron String?     // Schedule cron expression e.g. "0 9 * * 1-5"
+  timezone     String      @default("UTC")
+  retryCount   Int         @default(3)
+  status       String      @default("DRAFT") // DRAFT, SCHEDULED, ACTIVE, COMPLETED
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  voiceCalls   VoiceCall[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+}
+
+model VoiceCall {
+  id              String    @id @default(cuid())
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  durationSeconds Int
+  transcript      String
+  summary         String
+  sentiment       String
+  nextBestAction  String
+  disposition     String    // INTERESTED, CALLBACK, VOICEMAIL, FAILED
+  audioUrl        String?
+  createdAt       DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([campaignId])
+  @@index([disposition])
+  @@index([sentiment])
+}
+
+model Subscription {
+  id               String            @id @default(cuid())
+  userId           String            @unique
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan             String            @default("STARTER") // STARTER, GROWTH, ENTERPRISE
+  status           String            @default("ACTIVE")  // ACTIVE, PAST_DUE, CANCELLED
+  currentPeriodEnd DateTime
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  voiceUsage       SubscriptionUsage?
+
+  @@index([userId])
+}
+
+model SubscriptionUsage {
+  id                  String        @id @default(cuid())
+  userId              String        @unique
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId      String?       @unique
+  subscription        Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  plan                String        @default("STARTER") // STARTER, GROWTH, ENTERPRISE
+  minutesUsed         Int           @default(0)
+  minutesLimit        Int           @default(100)
+  contactCredits      Int           @default(0)
+  contactCreditsLimit Int           @default(500)
+  billingCycleEnd     DateTime
+  updatedAt           DateTime      @updatedAt
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress String?
+  userAgent String?
+  metadata  String?  // JSON string
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+}
