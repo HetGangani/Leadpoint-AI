@@ -87,6 +87,10 @@ model Lead {
   enrichedData        String         // JSON string containing funding, hiring, tech_stack
   calendlySentAt      DateTime?      // Timestamp when Calendly SMS booking link was dispatched
   calendlyBookedAt    DateTime?      // Timestamp when Calendly meeting was confirmed
+  calendlyInviteeUri  String?        // Calendly API Invitee Resource URI
+  calendlyEventUri    String?        // Calendly API Scheduled Event Resource URI
+  smsProvider         String?        // SMS Provider used e.g. twilio, mock
+  smsMessageId        String?        // Provider unique message ID / SID
   followUpRequired    Boolean        @default(false) // Flagged true if Calendly not booked after handoff
   followUpScheduledAt DateTime?      // Target timestamp for re-call / SDR follow-up
   createdAt           DateTime       @default(now())
@@ -126,6 +130,9 @@ model VoiceCall {
   lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
   campaignId      String?
   campaign        Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  provider        String?   // twilio, mock
+  providerCallId  String?   // Twilio CallSid or mock call ID
+  status          String?   // initiated, ringing, answered, in-progress, completed, busy, failed, no-answer, canceled
   durationSeconds Int
   transcript      String
   summary         String
@@ -133,12 +140,15 @@ model VoiceCall {
   nextBestAction  String
   disposition     String    // INTERESTED, CALLBACK, VOICEMAIL, FAILED, BUSY, HUMAN_HANDOFF
   audioUrl        String?
+  startedAt       DateTime?
+  endedAt         DateTime?
   createdAt       DateTime  @default(now())
 
   @@index([leadId])
   @@index([campaignId])
   @@index([disposition])
   @@index([sentiment])
+  @@index([providerCallId])
 }
 
 model Subscription {

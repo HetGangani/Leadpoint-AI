@@ -471,8 +471,43 @@ export default function LeadDiscoveryPage() {
                       </div>
                     </div>
 
-                    {/* Action Controls for Calendly / Follow-up */}
+                    {/* Action Controls for Voice Calling / Calendly / Follow-up */}
                     <div className="flex items-center space-x-2">
+                      {/* Call Lead Button */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/voice/call', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ leadId: lead.id }),
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              alert(`Call initiated via ${data.data.provider.toUpperCase()} provider!\nStatus: ${data.data.status.toUpperCase()}\nProvider Call ID: ${data.data.providerCallId}`);
+                            } else {
+                              alert(`Call initiation failed: ${data.error}`);
+                            }
+                            fetchLeads();
+                          } catch (err: any) {
+                            alert(`Error calling lead: ${err.message}`);
+                          }
+                        }}
+                        className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 transition"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        <span>Call Lead</span>
+                      </button>
+
+                      {/* Simulate AI Call Link Button */}
+                      <a
+                        href={`/en/voice?leadId=${lead.id}`}
+                        className="px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-[11px] font-semibold flex items-center space-x-1.5 transition"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+                        <span>Simulate Call</span>
+                      </a>
+
                       {lead.status === 'CALENDLY_SENT' && (
                         <>
                           <button

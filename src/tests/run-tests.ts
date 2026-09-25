@@ -3,6 +3,10 @@ import { runGeminiVoiceTests } from './gemini-voice.test';
 import { runAuthMiddlewareTests } from './auth-middleware.test';
 import { runAuthPhase1Tests } from './auth.test';
 import { runCalendlyHandoffTests } from './calendly-handoff.test';
+import { runSmsServiceTests } from './sms-service.test';
+import { runCalendlyServiceTests } from './calendly-service.test';
+import { runTelephonyServiceTests } from './telephony-service.test';
+import { prisma } from '../lib/prisma';
 
 async function main() {
   console.log('====================================================');
@@ -13,15 +17,19 @@ async function main() {
   let totalPassed = 0;
   let totalFailed = 0;
 
-  const allSuiteResults = [
-    await runLeadServiceTests(),
-    await runGeminiVoiceTests(),
-    await runAuthMiddlewareTests(),
-    await runAuthPhase1Tests(),
-    await runCalendlyHandoffTests(),
+  const testRunners = [
+    runLeadServiceTests,
+    runGeminiVoiceTests,
+    runAuthMiddlewareTests,
+    runAuthPhase1Tests,
+    runCalendlyHandoffTests,
+    runSmsServiceTests,
+    runCalendlyServiceTests,
+    runTelephonyServiceTests,
   ];
 
-  for (const suite of allSuiteResults) {
+  for (const runner of testRunners) {
+    const suite = await runner();
     for (const test of suite) {
       totalTests++;
       if (test.passed) {
@@ -43,14 +51,17 @@ async function main() {
   console.log('====================================================\n');
 
   if (totalFailed > 0) {
+    await prisma.$disconnect().catch(() => {});
     process.exit(1);
   } else {
     console.log('🎉 All Workflow Unit & Integration Tests Passed Successfully!');
+    await prisma.$disconnect().catch(() => {});
     process.exit(0);
   }
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('Unhandled test execution error:', err);
+  await prisma.$disconnect().catch(() => {});
   process.exit(1);
 });

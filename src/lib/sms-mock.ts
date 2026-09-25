@@ -7,10 +7,11 @@ export interface SmsSendOptions {
 
 export interface SmsSendResult {
   success: boolean;
-  provider: 'mock';
+  provider: 'twilio' | 'mock';
   message: string;
   recipient: string;
   timestamp: string;
+  messageId?: string;
   error?: string;
 }
 
@@ -35,12 +36,14 @@ export async function sendSmsMock(options: SmsSendOptions): Promise<SmsSendResul
   }
 
   const cleanPhone = recipientPhone.trim();
+  const mockMessageId = `SM_mock_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   // Console logging for product demo visibility
   console.log(`========================================`);
   console.log(`[SMS SENT (MOCK)]`);
   console.log(`Provider: MOCK TELEPHONY SMS GATEWAY`);
   console.log(`Recipient: ${cleanPhone}`);
+  console.log(`Message SID: ${mockMessageId}`);
   console.log(`Timestamp: ${timestamp}`);
   console.log(`Message:\n"${message}"`);
   console.log(`========================================`);
@@ -50,6 +53,7 @@ export async function sendSmsMock(options: SmsSendOptions): Promise<SmsSendResul
     provider: 'mock',
     message,
     recipient: cleanPhone,
+    messageId: mockMessageId,
     timestamp,
   };
 }

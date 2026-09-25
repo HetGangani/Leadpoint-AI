@@ -67,6 +67,19 @@ export function isHumanHandoffRequested(text: string): boolean {
   return requestRegex.test(textLower);
 }
 
+export function extractPhoneNumber(text: string): string | null {
+  if (!text) return null;
+  // Match standard phone formats: e.g. 7861097967, +17861097967, (786) 109-7967, 786-109-7967, +919876543210
+  const match = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\+?\d{10,14}/);
+  if (match) {
+    const cleaned = match[0].replace(/[\s\-\(\)\.]/g, '');
+    if (/^\+?[1-9]\d{9,14}$/.test(cleaned)) {
+      return cleaned.startsWith('+') ? cleaned : `+1${cleaned}`;
+    }
+  }
+  return null;
+}
+
 /**
  * Heuristic & Gemini-backed Turn Processor
  */
@@ -115,8 +128,39 @@ export async function processVoiceAgentTurn(request: AgentTurnRequest): Promise<
   }
 
   const textLower = userUtterance.toLowerCase();
+  const history = request.conversationHistory || [];
+  const lastAgentTurn = [...history].reverse().find((m) => m.sender === 'agent')?.text.toLowerCase() || '';
 
-  // Check Human Handoff Intent FIRST
+  // 1. Check if user is responding with a phone number (e.g. after phone confirmation prompt or during handoff)
+  const phoneDetected = extractPhoneNumber(userUtterance);
+  if (
+    phoneDetected &&
+    (lastAgentTurn.includes('phone') ||
+      lastAgentTurn.includes('number') ||
+      lastAgentTurn.includes('confirm') ||
+      isHumanHandoffRequested(lastAgentTurn) ||
+      lastAgentTurn.includes('booking link'))
+  ) {
+    const confirmationResponses: Record<SupportedLocale, string> = {
+      en: `Thank you, ${leadName}! I have updated your phone number to ${phoneDetected} and sent your Calendly booking link. Please check your messages to pick a time!`,
+      es: `¡Gracias, ${leadName}! He actualizado su número de teléfono a ${phoneDetected} y enviado el enlace de reserva de Calendly. ¡Por favor revise sus mensajes!`,
+      de: `Vielen Dank, ${leadName}! Ich habe Ihre Telefonnummer auf ${phoneDetected} aktualisiert und den Calendly-Buchungslink gesendet. Bitte überprüfen Sie Ihre Nachrichten!`,
+      hi: `धन्यवाद, ${leadName}! मैंने आपका फ़ोन नंबर ${phoneDetected} अपडेट कर दिया है और कैलेंडली बुकिंग लिंक भेज दिया है। कृपया अपने संदेश देखें!`,
+      fr: `Merci, ${leadName}! J'ai mis à jour votre numéro de téléphone au ${phoneDetected} et envoyé le lien de réservation Calendly. Veuillez vérifier vos messages!`,
+    };
+
+    return {
+      replyText: confirmationResponses[locale] || confirmationResponses.en,
+      stage: 'HUMAN_HANDOFF',
+      sentiment: 'POSITIVE',
+      nextSuggestedStep: `Dispatched Calendly booking link to ${phoneDetected}.`,
+      isHighIntent: true,
+      disposition: CallDisposition.HUMAN_HANDOFF,
+      extractedPhone: phoneDetected,
+    };
+  }
+
+  // 2. Check Human Handoff Intent FIRST
   if (isHumanHandoffRequested(userUtterance)) {
     const handoffResponses: Record<SupportedLocale, string> = {
       en: `I'd be happy to connect you with our team, ${leadName}! I'm sending a booking link to your phone now so you can pick a convenient time to speak with us.`,
@@ -218,6 +262,80 @@ export async function processVoiceAgentTurn(request: AgentTurnRequest): Promise<
     replyText = faqResponses[locale] || faqResponses.en;
     nextSuggestedStep = 'Explain core service offerings & ask qualification question on timeline.';
   } else {
+    // Multi-turn Qualification Progression
+    // Check if the agent previously asked timeline or budget to avoid repeating questions
+    if (
+      lastAgentTurn.includes('timeline') ||
+      lastAgentTurn.includes('target completion') ||
+      lastAgentTurn.includes('zeitrahmen') ||
+      lastAgentTurn.includes('plazo objetivo') ||
+      lastAgentTurn.includes('समय सीमा')
+    ) {
+      const budgetResponses: Record<SupportedLocale, string> = {
+        en: `Great, ${userUtterance.trim().length <= 25 ? userUtterance.trim() : 'that timeline'} gives us a clear runway to plan deployment for ${companyName}. To help tailor the right architecture, what is your team size or estimated budget allocated for this initiative?`,
+        es: `Excelente, ${userUtterance.trim().length <= 25 ? userUtterance.trim() : 'ese plazo'} nos da un panorama claro para ${companyName}. Para adaptar la arquitectura, ¿cuál es el tamaño del equipo o presupuesto estimado?`,
+        de: `Großartig, ${userUtterance.trim().length <= 25 ? userUtterance.trim() : 'dieser Zeitrahmen'} bietet uns eine klare Grundlage für ${companyName}. Wie groß ist Ihr Team oder das geplante Budget?`,
+        hi: `बहुत अच्छा, यह समय सीमा ${companyName} के लिए स्पष्ट योजना देती है। सही समाधान के लिए, आपकी टीम का आकार या अनुमानित बजट क्या है?`,
+        fr: `Parfait, ${userUtterance.trim().length <= 25 ? userUtterance.trim() : 'ce calendrier'} nous donne une bonne visibilité pour ${companyName}. Quelle est la taille de votre équipe ou le budget estimé?`,
+      };
+      return {
+        replyText: budgetResponses[locale] || budgetResponses.en,
+        stage: 'QUALIFYING',
+        sentiment: 'POSITIVE',
+        nextSuggestedStep: 'Qualify budget and team size for architecture scope.',
+        isHighIntent: false,
+        disposition: CallDisposition.INTERESTED,
+      };
+    }
+
+    if (
+      lastAgentTurn.includes('budget') ||
+      lastAgentTurn.includes('team size') ||
+      lastAgentTurn.includes('allocated') ||
+      lastAgentTurn.includes('presupuesto') ||
+      lastAgentTurn.includes('बजट')
+    ) {
+      const demoResponses: Record<SupportedLocale, string> = {
+        en: `Understood, thanks for providing those details, ${leadName}. Based on what you've shared for ${companyName}, our solutions engineer would love to walk you through a tailored 20-minute architecture demo. Would Tuesday or Thursday afternoon work better for you?`,
+        es: `Entendido, gracias por los detalles, ${leadName}. Según lo compartido para ${companyName}, nos encantaría coordinar una demostración técnica de 20 minutos. ¿Le queda mejor el martes o jueves por la tarde?`,
+        de: `Verstanden, vielen Dank für die Details, ${leadName}. Passend zu Ihren Anforderungen für ${companyName} möchten wir Ihnen gerne eine 20-minütige Demo präsentieren. Passt Ihnen Dienstag- oder Donnerstagnachmittag besser?`,
+        hi: `समझ गया, विवरण के लिए धन्यवाद, ${leadName}। ${companyName} की आवश्यकताओं के आधार पर, हम एक 20 मिनट का डेमो प्रदर्शित करना चाहते हैं। क्या मंगलवार या गुरुवार दोपहर आपके लिए बेहतर रहेगा?`,
+        fr: `C'est bien noté, merci pour ces précisions, ${leadName}. Selon vos besoins pour ${companyName}, nous aimerions vous proposer une démonstration de 20 minutes. Le mardi ou le jeudi après-midi vous conviendrait-il?`,
+      };
+      return {
+        replyText: demoResponses[locale] || demoResponses.en,
+        stage: 'INTENT_AFFIRMED',
+        sentiment: 'POSITIVE',
+        nextSuggestedStep: '🔥 Qualification completed. Proposed meeting time slots.',
+        isHighIntent: true,
+        disposition: CallDisposition.INTERESTED,
+      };
+    }
+
+    if (
+      lastAgentTurn.includes('tuesday or thursday') ||
+      lastAgentTurn.includes('afternoon work') ||
+      lastAgentTurn.includes('martes o jueves') ||
+      lastAgentTurn.includes('dienstag- oder donnerstag')
+    ) {
+      const confirmResponses: Record<SupportedLocale, string> = {
+        en: `Fantastic! I have noted ${userUtterance.trim().length <= 30 ? userUtterance.trim() : 'that time'} for our solutions demo with ${companyName}. I'll send the calendar invitation and project overview directly to your contact info. Have a wonderful day!`,
+        es: `¡Fantástico! He reservado ese horario para la demostración con ${companyName}. Enviaré la invitación y el resumen directamente a su correo. ¡Que tenga un excelente día!`,
+        de: `Fantastisch! Ich habe den Termin für die Demo mit ${companyName} notiert. Ich sende Ihnen die Kalendereinladung und Übersicht direkt zu. Einen schönen Tag noch!`,
+        hi: `शानदार! मैंने ${companyName} के साथ डेमो के लिए समय दर्ज कर लिया है। मैं सीधे आपके संपर्क पर कैलेंडर आमंत्रण भेज दूँगा। आपका दिन शुभ हो!`,
+        fr: `Fantastique! J'ai bien noté ce créneau pour la démonstration avec ${companyName}. Je vous envoie l'invitation d'agenda et la synthèse directement. Excellente journée!`,
+      };
+      return {
+        replyText: confirmResponses[locale] || confirmResponses.en,
+        stage: 'INTENT_AFFIRMED',
+        sentiment: 'POSITIVE',
+        nextSuggestedStep: 'Meeting confirmed. Send calendar invitation & discovery deck.',
+        isHighIntent: true,
+        disposition: CallDisposition.INTERESTED,
+      };
+    }
+
+    // Default initial qualification question
     stage = 'QUALIFYING';
     sentiment = 'POSITIVE';
     disposition = CallDisposition.INTERESTED;

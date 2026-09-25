@@ -108,5 +108,62 @@ export async function runGeminiVoiceTests(): Promise<{ name: string; passed: boo
     results.push({ name: 'Voice SDR - Objection Handling & FAQ Classifier', passed: false, error: err.message });
   }
 
+  // Test 5: Phone Number Extraction
+  try {
+    const { extractPhoneNumber } = await import('../lib/gemini-voice');
+    assert(extractPhoneNumber('7861097967') === '+17861097967', 'Standard 10-digit should format to +17861097967');
+    assert(extractPhoneNumber('+1-786-109-7967') === '+17861097967', 'Formatted US phone should normalize');
+    assert(extractPhoneNumber('+919876543210') === '+919876543210', 'India phone should normalize');
+    assert(extractPhoneNumber('no phone number here') === null, 'Non-phone should return null');
+    results.push({ name: 'Voice SDR - Phone Number Extraction & Normalization', passed: true });
+  } catch (err: any) {
+    results.push({ name: 'Voice SDR - Phone Number Extraction & Normalization', passed: false, error: err.message });
+  }
+
+  // Test 6: Multi-Turn Conversation Progression (No Repeated Questions)
+  try {
+    // Turn 1: AI asked timeline question
+    const turn1History = [
+      { sender: 'agent' as const, text: 'Thanks for sharing that, Sarah Jenkins. To ensure we tailor the right architecture for Apex Cloud Solutions, what is your target completion timeline for this initiative?' }
+    ];
+
+    // Prospect answers: "1 week"
+    const turn2Response = await processVoiceAgentTurn({
+      userUtterance: '1 week',
+      locale: 'en',
+      leadName: 'Sarah Jenkins',
+      companyName: 'Apex Cloud Solutions',
+      conversationHistory: turn1History,
+    });
+
+    assert(!turn2Response.replyText.includes('what is your target completion timeline'), 'AI must NOT repeat the timeline question');
+    assert(turn2Response.replyText.includes('budget') || turn2Response.replyText.includes('team size'), 'AI should progress to budget/team question');
+    results.push({ name: 'Voice SDR - Multi-Turn Non-Repeating Progression', passed: true });
+  } catch (err: any) {
+    results.push({ name: 'Voice SDR - Multi-Turn Non-Repeating Progression', passed: false, error: err.message });
+  }
+
+  // Test 7: Phone Response after Missing Phone Prompt
+  try {
+    const handoffPromptHistory = [
+      { sender: 'agent' as const, text: "I would love to send you our booking link, but I don't have a valid mobile phone number on record for you. Could you please confirm your phone number?" }
+    ];
+
+    const phoneReply = await processVoiceAgentTurn({
+      userUtterance: '7861097967',
+      locale: 'en',
+      leadName: 'Sarah Jenkins',
+      companyName: 'Apex Cloud Solutions',
+      conversationHistory: handoffPromptHistory,
+    });
+
+    assert(phoneReply.stage === 'HUMAN_HANDOFF', 'Phone reply to missing phone prompt should trigger HUMAN_HANDOFF');
+    assert(phoneReply.extractedPhone === '+17861097967', 'Phone should be extracted');
+    assert(phoneReply.replyText.includes('+17861097967'), 'Reply text should confirm phone number');
+    results.push({ name: 'Voice SDR - Phone Response During Handoff', passed: true });
+  } catch (err: any) {
+    results.push({ name: 'Voice SDR - Phone Response During Handoff', passed: false, error: err.message });
+  }
+
   return results;
 }

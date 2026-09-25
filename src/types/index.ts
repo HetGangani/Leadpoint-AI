@@ -102,6 +102,8 @@ export interface LeadWithCalls {
   enrichedData: EnrichedDataJson;
   calendlySentAt?: Date | null;
   calendlyBookedAt?: Date | null;
+  calendlyInviteeUri?: string | null;
+  calendlyEventUri?: string | null;
   followUpRequired?: boolean;
   followUpScheduledAt?: Date | null;
   createdAt: Date;
@@ -112,6 +114,9 @@ export interface VoiceCallSummary {
   id: string;
   leadId: string;
   campaignId?: string | null;
+  provider?: string | null;
+  providerCallId?: string | null;
+  status?: string | null;
   durationSeconds: number;
   transcript: string;
   summary: string;
@@ -119,6 +124,8 @@ export interface VoiceCallSummary {
   nextBestAction: string;
   disposition: CallDisposition;
   audioUrl?: string | null;
+  startedAt?: Date | null;
+  endedAt?: Date | null;
   createdAt: Date;
 }
 
@@ -181,9 +188,10 @@ export interface AgentTurnResponse {
   nextSuggestedStep: string;
   isHighIntent: boolean;
   disposition: CallDisposition;
+  extractedPhone?: string;
   smsDetails?: {
     sent: boolean;
-    provider: 'mock' | 'real';
+    provider: 'mock' | 'twilio';
     message?: string;
     recipient?: string;
     calendlyUrl?: string;
