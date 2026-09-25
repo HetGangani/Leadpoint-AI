@@ -22,12 +22,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { platform, keywords, industry } = body;
+    const { platform, keywords, industry, customUrl } = body;
 
     const harvested = await harvestPublicRequirements({
       platform,
       keywords,
       industry,
+      customUrl,
     });
 
     const whereClause = profileId ? { companyProfileId: profileId } : {};
