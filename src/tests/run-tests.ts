@@ -6,6 +6,7 @@ import { runCalendlyHandoffTests } from './calendly-handoff.test';
 import { runSmsServiceTests } from './sms-service.test';
 import { runCalendlyServiceTests } from './calendly-service.test';
 import { runTelephonyServiceTests } from './telephony-service.test';
+import { runHubSpotOAuthTests } from './hubspot-oauth.test';
 import { prisma } from '../lib/prisma';
 
 async function main() {
@@ -26,6 +27,7 @@ async function main() {
     runSmsServiceTests,
     runCalendlyServiceTests,
     runTelephonyServiceTests,
+    runHubSpotOAuthTests,
   ];
 
   for (const runner of testRunners) {

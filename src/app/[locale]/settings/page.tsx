@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'profile' | 'telephony' | 'calendly' | 'ai'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'telephony' | 'calendly' | 'integrations' | 'ai'>('profile');
   const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -41,6 +41,13 @@ export default function SettingsPage() {
   const [sdrPersona, setSdrPersona] = useState('Alex Carter');
   const [aiModel, setAiModel] = useState('gemini-1.5-flash');
 
+  // HubSpot Integration states
+  const [hubspotConnected, setHubspotConnected] = useState(false);
+  const [hubspotAccountId, setHubspotAccountId] = useState<string | null>(null);
+  const [hubspotLoading, setHubspotLoading] = useState(false);
+  const [hubspotDisconnecting, setHubspotDisconnecting] = useState(false);
+  const [oauthMessage, setOauthMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   useEffect(() => {
     let mounted = true;
     async function loadProfile() {
@@ -59,11 +66,71 @@ export default function SettingsPage() {
         if (mounted) setLoading(false);
       }
     }
+
+    async function loadHubSpotStatus() {
+      try {
+        setHubspotLoading(true);
+        const res = await fetch('/api/integrations/hubspot/status');
+        const data = await res.json();
+        if (mounted && data.success && data.data) {
+          setHubspotConnected(data.data.connected);
+          setHubspotAccountId(data.data.accountId);
+        }
+      } catch (err) {
+        console.error('Failed to load HubSpot status:', err);
+      } finally {
+        if (mounted) setHubspotLoading(false);
+      }
+    }
+
     loadProfile();
+    loadHubSpotStatus();
+
+    // Check query params for OAuth success or error
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('success') === 'hubspot_connected') {
+        setActiveTab('integrations');
+        const account = params.get('account');
+        setOauthMessage({
+          type: 'success',
+          text: `HubSpot CRM connected successfully! ${account ? `(Account: ${account})` : ''}`,
+        });
+        window.history.replaceState({}, '', window.location.pathname);
+      } else if (params.get('error')) {
+        setActiveTab('integrations');
+        setOauthMessage({
+          type: 'error',
+          text: params.get('message') || `HubSpot connection failed (${params.get('error')}).`,
+        });
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+
     return () => {
       mounted = false;
     };
   }, []);
+
+  const handleDisconnectHubSpot = async () => {
+    if (!confirm('Are you sure you want to disconnect HubSpot CRM?')) return;
+    try {
+      setHubspotDisconnecting(true);
+      const res = await fetch('/api/integrations/hubspot/disconnect', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setHubspotConnected(false);
+        setHubspotAccountId(null);
+        setOauthMessage({ type: 'success', text: 'HubSpot integration disconnected successfully.' });
+      } else {
+        setOauthMessage({ type: 'error', text: data.error || 'Failed to disconnect HubSpot.' });
+      }
+    } catch (err: any) {
+      setOauthMessage({ type: 'error', text: err.message || 'Failed to disconnect.' });
+    } finally {
+      setHubspotDisconnecting(false);
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +156,7 @@ export default function SettingsPage() {
             Workspace Configuration
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Manage your company ICP, telephony provider, Calendly scheduling links, and AI SDR personas.
+            Manage your company ICP, telephony provider, Calendly scheduling links, CRM integrations, and AI SDR personas.
           </p>
         </div>
 
@@ -112,6 +179,7 @@ export default function SettingsPage() {
             { id: 'profile', label: 'Company Profile & ICP', icon: Building2 },
             { id: 'telephony', label: 'Voice & Telephony', icon: PhoneCall },
             { id: 'calendly', label: 'Calendly & SMS Handoff', icon: CalendarCheck },
+            { id: 'integrations', label: 'Integrations & CRM', icon: Sliders },
             { id: 'ai', label: 'AI Persona & Models', icon: Bot },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -251,6 +319,93 @@ export default function SettingsPage() {
                     <p className="text-[11px] text-slate-700 leading-normal">
                       When the Voice SDR identifies positive human handoff intent, this link is texted directly to the caller's verified phone number.
                     </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Integrations & CRM */}
+            {activeTab === 'integrations' && (
+              <div className="space-y-5">
+                <div>
+                  <h2 className="text-base font-extrabold text-[#0F0F12]">CRM & External Integrations</h2>
+                  <p className="text-xs text-slate-600">
+                    Connect your CRM to synchronize qualified leads and receive real-time updates.
+                  </p>
+                </div>
+
+                {oauthMessage && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs font-bold flex items-center space-x-2 border animate-in fade-in ${
+                      oauthMessage.type === 'success'
+                        ? 'bg-[#34D399]/15 border-[#34D399]/40 text-emerald-950'
+                        : 'bg-[#F87171]/15 border-[#F87171]/40 text-rose-950'
+                    }`}
+                  >
+                    {oauthMessage.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-[#34D399] flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-[#F87171] flex-shrink-0" />
+                    )}
+                    <span>{oauthMessage.text}</span>
+                  </div>
+                )}
+
+                {/* HubSpot CRM Card */}
+                <div className="p-5 rounded-2xl bg-white/80 border border-[#5C1D3A]/20 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#E6F0FA] border border-[#5C1D3A]/15 flex items-center justify-center font-extrabold text-[#0F0F12] text-sm shadow-xs">
+                        HS
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-extrabold text-sm text-[#0F0F12]">HubSpot</h3>
+                          {hubspotConnected && (
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#34D399]/20 text-emerald-900 border border-[#34D399]/40">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#34D399] animate-pulse"></span>
+                              <span>Connected</span>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          {hubspotConnected
+                            ? `Account: ${hubspotAccountId || '247522848'}`
+                            : 'Connect your HubSpot CRM'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      {hubspotLoading ? (
+                        <div className="p-2 text-slate-500">
+                          <RefreshCw className="w-4 h-4 animate-spin text-[#0F0F12]" />
+                        </div>
+                      ) : hubspotConnected ? (
+                        <button
+                          type="button"
+                          onClick={handleDisconnectHubSpot}
+                          disabled={hubspotDisconnecting}
+                          className="btn-danger-crimson px-4 py-2 text-xs font-bold inline-flex items-center space-x-1.5 cursor-pointer"
+                        >
+                          {hubspotDisconnecting ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Disconnecting...</span>
+                            </>
+                          ) : (
+                            <span>Disconnect</span>
+                          )}
+                        </button>
+                      ) : (
+                        <a
+                          href="/api/integrations/hubspot/oauth/authorize"
+                          className="btn-primary-black px-4 py-2 text-xs font-bold inline-flex items-center space-x-1.5 cursor-pointer"
+                        >
+                          <span>Connect HubSpot</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

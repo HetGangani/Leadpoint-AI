@@ -9,3 +9,6 @@ prisma/*.db-journal
 dist/
 build/
 coverage/
+
+# HubSpot link folder
+.hs

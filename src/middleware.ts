@@ -16,6 +16,7 @@ const PUBLIC_API_PATHS = [
   '/api/auth/logout',
   '/api/webhooks/',
   '/api/voice/twilio/',
+  '/api/integrations/hubspot/oauth/callback',
 ];
 
 export default async function middleware(req: NextRequest) {

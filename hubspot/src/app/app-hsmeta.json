@@ -1,0 +1,26 @@
+{
+  "uid": "leadpoint_ai_app",
+  "type": "app",
+  "config": {
+    "name": "LeadPoint-AI CRM Integration",
+    "description": "Bi-directional HubSpot CRM sync, Contact ingestion, and Webhook automation for LeadPoint-AI.",
+    "distribution": "private",
+    "permittedUrls": {
+      "fetch": [
+        "https://urging-headway-cardinal.ngrok-free.dev"
+      ],
+      "iframe": [],
+      "img": []
+    },
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": [
+        "http://localhost:3000/api/integrations/hubspot/oauth/callback"
+      ],
+      "requiredScopes": [
+        "crm.objects.contacts.read",
+        "crm.objects.contacts.write"
+      ]
+    }
+  }
+}

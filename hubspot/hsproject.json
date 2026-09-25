@@ -1,0 +1,6 @@
+{
+  "name": "leadpoint-ai-hubspot",
+  "srcDir": "src",
+  "platformVersion": "2026.09",
+  "description": "HubSpot Projects application for LeadPoint-AI bi-directional CRM sync and webhooks"
+}
