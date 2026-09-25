@@ -47,7 +47,8 @@ export async function POST(request: Request) {
 
     // Hash password
     const hashedPassword = await hashPassword(password);
-    const assignedRole = role && Object.values(UserRole).includes(role) ? role : UserRole.CLIENT;
+    // Security: Never trust client-supplied role on public registration; always default to CLIENT
+    const assignedRole = UserRole.CLIENT;
 
     // Create user in DB
     const newUser = await prisma.user.create({

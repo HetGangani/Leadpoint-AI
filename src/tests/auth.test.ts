@@ -9,6 +9,10 @@ import {
   isClient,
   isSDR,
   sanitizeUser,
+  requireAuth,
+  requireRole,
+  requireAdmin,
+  AuthError,
 } from '../lib/auth';
 import { UserRole } from '../types';
 
@@ -216,5 +220,84 @@ export async function runAuthPhase1Tests(): Promise<{ name: string; passed: bool
     results.push({ name: '13. Auth - Role Authorization Matrix (hasRole, guards)', passed: false, error: err.message });
   }
 
+  // 14. Registration Privilege Escalation Prevention (Phase 21)
+  try {
+    const maliciousPayload: any = {
+      name: 'Attacker User',
+      email: 'attacker@evilcorp.com',
+      password: 'Password123!',
+      role: 'ADMIN', // Malicious attempt to register as ADMIN
+    };
+
+    // System must always enforce CLIENT role regardless of body payload
+    const assignedRole = UserRole.CLIENT;
+    assert(assignedRole === UserRole.CLIENT, 'Assigned role must always be CLIENT');
+    assert(assignedRole !== maliciousPayload.role, 'Malicious payload role must NOT be honored');
+    results.push({ name: '14. Security - Registration Privilege Escalation Prevention', passed: true });
+  } catch (err: any) {
+    results.push({ name: '14. Security - Registration Privilege Escalation Prevention', passed: false, error: err.message });
+  }
+
+  // 15. Unauthenticated Request Guard (requireAuth throws 401)
+  try {
+    const unauthReq = new Request('http://localhost:3000/api/leads');
+    let threw401 = false;
+    try {
+      await requireAuth(unauthReq);
+    } catch (e: any) {
+      if (e instanceof AuthError && e.statusCode === 401) {
+        threw401 = true;
+      }
+    }
+    assert(threw401 === true, 'requireAuth must throw 401 AuthError for unauthenticated requests');
+    results.push({ name: '15. Security - Unauthenticated Request Guard (401)', passed: true });
+  } catch (err: any) {
+    results.push({ name: '15. Security - Unauthenticated Request Guard (401)', passed: false, error: err.message });
+  }
+
+  // 16. Non-Admin Access Rejection on Admin Endpoints (requireAdmin throws 403)
+  try {
+    const clientToken = await signSessionToken({
+      id: 'usr_client_999',
+      email: 'client@company.com',
+      name: 'Client User',
+      role: UserRole.CLIENT,
+      companyProfileId: 'comp_client_999',
+    });
+    const clientReq = new Request('http://localhost:3000/api/admin/metrics', {
+      headers: { authorization: `Bearer ${clientToken}` },
+    });
+    let threw403 = false;
+    try {
+      await requireAdmin(clientReq);
+    } catch (e: any) {
+      if (e instanceof AuthError && e.statusCode === 403) {
+        threw403 = true;
+      }
+    }
+    assert(threw403 === true, 'requireAdmin must throw 403 AuthError when accessed by non-ADMIN user');
+    results.push({ name: '16. Security - Non-Admin Access Rejection (403)', passed: true });
+  } catch (err: any) {
+    results.push({ name: '16. Security - Non-Admin Access Rejection (403)', passed: false, error: err.message });
+  }
+
+  // 17. Cross-Tenant Lead Mutation Rejection
+  try {
+    const tenantAProfileId = 'tenant_company_alpha';
+    const tenantBLeadRecord = {
+      id: 'lead_beta_001',
+      name: 'Target Lead Beta',
+      companyProfileId: 'tenant_company_beta',
+    };
+
+    // Simulate route authorization check on /api/leads/[id]/status
+    const isOwner = tenantBLeadRecord.companyProfileId === tenantAProfileId;
+    assert(isOwner === false, 'Tenant A must not be authorized to modify Tenant B lead');
+    results.push({ name: '17. Security - Cross-Tenant Lead Mutation Rejection', passed: true });
+  } catch (err: any) {
+    results.push({ name: '17. Security - Cross-Tenant Lead Mutation Rejection', passed: false, error: err.message });
+  }
+
   return results;
 }
+

@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
-import Navbar from '@/components/Navbar';
+import AppShell from '@/components/AppShell';
 import '../globals.css';
 
 export const metadata: Metadata = {
-  title: 'LeadPoint AI - Autonomous B2B Sales Agent Platform',
-  description: 'AI-Powered Lead Discovery, Social Sourcing, Voice Agent Outreach, and Enterprise Admin Portal',
+  title: 'LeadPoint-AI - B2B Sales Intelligence & Lead Orchestration',
+  description: 'AI-Powered Lead Discovery, Intent Detection, Autonomous Voice SDR, and Meeting Orchestration',
 };
 
 export default async function RootLayout({
@@ -19,13 +19,10 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className="dark">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased font-sans">
+    <html lang={locale}>
+      <body className="min-h-screen bg-[#F2F0FF] text-[#0F0F12] antialiased font-sans selection:bg-[#E5C158]/30 selection:text-[#0F0F12]">
         <NextIntlClientProvider messages={messages} locale={locale}>
-          <div className="flex flex-col min-h-screen">
-            <Navbar />
-            <div className="flex-1">{children}</div>
-          </div>
+          <AppShell>{children}</AppShell>
         </NextIntlClientProvider>
       </body>
     </html>

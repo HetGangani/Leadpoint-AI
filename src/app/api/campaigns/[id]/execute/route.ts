@@ -37,10 +37,11 @@ export async function POST(
     }
 
     const leadWhere: any = {};
-    if (session.role !== 'ADMIN' || profileId) {
-      if (profileId) {
-        leadWhere.companyProfileId = profileId;
+    if (session.role !== 'ADMIN') {
+      if (!profileId) {
+        return NextResponse.json({ success: false, error: 'No company profile found for current user.' }, { status: 400 });
       }
+      leadWhere.companyProfileId = profileId;
     }
 
     // Get leads for campaign (scoped to tenant)

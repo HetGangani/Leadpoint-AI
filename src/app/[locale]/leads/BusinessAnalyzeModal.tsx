@@ -58,32 +58,34 @@ export default function BusinessAnalyzeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F0F12]/60 backdrop-blur-md p-4 overflow-y-auto">
+      <div className="glass-modal rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+        <div className="px-6 py-4 border-b border-[#5C1D3A]/15 flex items-center justify-between bg-[#E6F0FA]/60">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
-              <Sparkles className="h-5 w-5" />
+            <div className="p-2 bg-[#E6F0FA] text-[#0F0F12] rounded-xl border border-[#5C1D3A]/20">
+              <Sparkles className="h-4 w-4 text-[#E5C158]" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">Business ICP & Intent Query Analyzer</h2>
-              <p className="text-xs text-slate-400">Extract value props, target client ICP, and social search triggers</p>
+              <h2 className="text-base font-extrabold text-[#0F0F12] tracking-tight">Business ICP & Intent Query Analyzer</h2>
+              <p className="text-xs text-slate-600">Extract value props, target client ICP, and social search triggers</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+            className="p-1.5 text-slate-500 hover:text-[#0F0F12] rounded-xl hover:bg-white/60 transition"
+            aria-label="Close"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6 text-sm text-slate-300">
+        <div className="p-6 overflow-y-auto space-y-5 text-sm text-slate-700">
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl flex items-center space-x-3 text-xs">
-              <AlertCircle className="h-5 w-5 shrink-0" />
+            <div className="p-3 bg-[#F87171]/15 border border-[#F87171]/40 text-rose-800 rounded-xl flex items-center space-x-2 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
               <span>{error}</span>
             </div>
           )}
@@ -91,8 +93,8 @@ export default function BusinessAnalyzeModal({
           {!result ? (
             <form onSubmit={handleAnalyze} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center space-x-2">
-                  <Building2 className="h-3.5 w-3.5 text-blue-400" />
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                  <Building2 className="h-3.5 w-3.5 text-[#0F0F12]" />
                   <span>Company Name</span>
                 </label>
                 <input
@@ -100,13 +102,13 @@ export default function BusinessAnalyzeModal({
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   placeholder="CloudScale Consulting Group"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 text-xs"
+                  className="w-full bg-white/80 border border-[#5C1D3A]/20 rounded-xl px-3.5 py-2 text-[#0F0F12] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F0F12] text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center space-x-2">
-                  <Globe className="h-3.5 w-3.5 text-indigo-400" />
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center space-x-1.5">
+                  <Globe className="h-3.5 w-3.5 text-[#0F0F12]" />
                   <span>Company Website URL</span>
                 </label>
                 <input
@@ -114,147 +116,104 @@ export default function BusinessAnalyzeModal({
                   value={companyUrl}
                   onChange={(e) => setCompanyUrl(e.target.value)}
                   placeholder="https://www.cloudscaleconsulting.example.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 text-xs"
+                  className="w-full bg-white/80 border border-[#5C1D3A]/20 rounded-xl px-3.5 py-2 text-[#0F0F12] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F0F12] text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Business Overview & Service Offerings Document
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Business Description & Value Propositions
                 </label>
                 <textarea
                   rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Enter business description, core services, SharePoint / M365 consulting specialties..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 text-xs leading-relaxed"
+                  placeholder="Enter details about your services, specialized offerings, target market, etc."
+                  className="w-full bg-white/80 border border-[#5C1D3A]/20 rounded-xl px-3.5 py-2 text-[#0F0F12] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F0F12] text-xs leading-relaxed"
                 />
               </div>
 
-              <div className="pt-2 flex justify-end space-x-3">
+              <div className="pt-2 flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs transition"
+                  className="btn-secondary-glass px-4 py-2 text-xs font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/25 flex items-center space-x-2 transition disabled:opacity-50"
+                  className="btn-primary-black px-5 py-2 text-xs font-bold flex items-center space-x-1.5 disabled:opacity-50"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin text-white" />
-                      <span>Analyzing with LLM...</span>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F6E27A]" />
+                      <span>Analyzing Profile...</span>
                     </>
                   ) : (
                     <>
-                      <Sparkles className="h-4 w-4" />
-                      <span>Run AI Analysis Engine</span>
+                      <Sparkles className="h-3.5 w-3.5 text-[#E5C158]" />
+                      <span>Run AI Analysis</span>
                     </>
                   )}
                 </button>
               </div>
             </form>
           ) : (
-            /* Analysis Results View */
-            <div className="space-y-6">
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center space-x-3 text-emerald-400 text-xs">
-                <CheckCircle2 className="h-5 w-5 shrink-0" />
-                <span>
-                  Business analysis complete! Core value propositions, ICP filters, and social search triggers have been extracted and synchronized with your Company Profile.
-                </span>
+            <div className="space-y-5">
+              <div className="p-3.5 bg-[#34D399]/15 border border-[#34D399]/40 rounded-2xl flex items-center space-x-2.5 text-xs text-emerald-900 font-semibold">
+                <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0" />
+                <span>Business ICP profile analyzed and registered for autonomous matching!</span>
               </div>
 
-              {/* Core Value Props */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center space-x-2">
-                  <Sparkles className="h-4 w-4" />
-                  <span>Extracted Core Value Propositions</span>
+              {/* Value propositions */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center space-x-1.5">
+                  <Target className="h-3.5 w-3.5 text-[#0F0F12]" />
+                  <span>Identified Value Propositions</span>
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {result.valuePropositions?.map((vp: any, idx: number) => (
-                    <div key={idx} className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1.5">
-                      <h4 className="font-semibold text-slate-100 text-xs">{vp.title}</h4>
-                      <p className="text-[11px] text-slate-400 leading-snug">{vp.description}</p>
-                      <div className="text-[10px] text-indigo-400 font-mono pt-1">Impact: {vp.impact}</div>
+                    <div key={idx} className="p-3.5 bg-white/70 border border-[#5C1D3A]/15 rounded-xl space-y-1">
+                      <div className="font-bold text-[#0F0F12] text-xs">{vp.title}</div>
+                      <div className="text-[11px] text-slate-600 leading-normal">{vp.description}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Target Client ICP */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center space-x-2">
-                  <Target className="h-4 w-4" />
-                  <span>Target Client Ideal Customer Profile (ICP)</span>
-                </h3>
-                <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-slate-400 block mb-1 font-medium">Target Vertical Industries</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {result.targetClientICP?.industries?.map((ind: string, i: number) => (
-                        <span key={i} className="px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[11px]">
-                          {ind}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-400 block mb-1 font-medium">Target Decision Makers</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {result.targetClientICP?.decisionMakers?.map((dm: string, i: number) => (
-                        <span key={i} className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px]">
-                          {dm}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="col-span-full">
-                    <span className="text-slate-400 block mb-1 font-medium">Key Client Pain Points Resolved</span>
-                    <ul className="list-disc list-inside space-y-1 text-slate-300 text-xs">
-                      {result.targetClientICP?.painPoints?.map((pp: string, i: number) => (
-                        <li key={i}>{pp}</li>
-                      ))}
-                    </ul>
+              {/* Search Triggers */}
+              {result.searchQueryTriggers && (
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center space-x-1.5">
+                    <Search className="h-3.5 w-3.5 text-[#0F0F12]" />
+                    <span>Social Intent Search Triggers</span>
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {result.searchQueryTriggers.map((q: string, i: number) => (
+                      <span key={i} className="text-xs bg-[#E6F0FA] border border-[#5C1D3A]/20 text-[#0F0F12] px-2.5 py-1 rounded-lg font-medium">
+                        "{q}"
+                      </span>
+                    ))}
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Intent Search Triggers */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-purple-400 uppercase tracking-wider flex items-center space-x-2">
-                  <Search className="h-4 w-4" />
-                  <span>Active Social Intent Search Query Triggers</span>
-                </h3>
-                <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  {result.searchQueryTriggers?.map((st: string, i: number) => (
-                    <div key={i} className="flex items-center space-x-2 text-xs text-purple-300 bg-purple-500/5 px-3 py-1.5 rounded-lg border border-purple-500/10 font-mono">
-                      <span className="text-purple-400 font-bold">#</span>
-                      <span>{st}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end space-x-3">
+              <div className="pt-3 border-t border-[#5C1D3A]/15 flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setResult(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs transition"
+                  className="btn-secondary-glass px-4 py-2 text-xs font-semibold"
                 >
-                  Re-Analyze
+                  Analyze Another
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition"
+                  className="btn-primary-black px-5 py-2 text-xs font-bold"
                 >
-                  Done & Close
+                  Done
                 </button>
               </div>
             </div>

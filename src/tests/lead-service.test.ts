@@ -80,10 +80,11 @@ export async function runLeadServiceTests(): Promise<{ name: string; passed: boo
       });
     }
 
+    const uniqueEmail = `marcus.vance.${Date.now()}@quantum.example.com`;
     const testBatch: CSVLeadInput[] = [
       {
         name: 'Marcus Vance',
-        businessEmail: `marcus.vance.${Date.now()}@quantum.example.com`,
+        businessEmail: uniqueEmail,
         companyName: 'Quantum Tech',
         originalPostUrl: `https://linkedin.com/posts/marcus-post-${Date.now()}`,
         relevanceScore: 0.95,
@@ -97,7 +98,7 @@ export async function runLeadServiceTests(): Promise<{ name: string; passed: boo
       // Batch Duplicate (Same email as first lead)
       {
         name: 'Marcus Duplicate',
-        businessEmail: `marcus.vance.${Date.now()}@quantum.example.com`,
+        businessEmail: uniqueEmail,
         companyName: 'Quantum Tech',
       }
     ];

@@ -57,19 +57,21 @@ export default function LanguageSwitcher() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-900 border border-slate-700/80 text-slate-200 hover:text-white hover:bg-slate-800/80 hover:border-slate-600 transition shadow-sm"
+        className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#E6F0FA]/85 hover:bg-[#E6F0FA] border border-[#5C1D3A]/20 text-[#0F0F12] backdrop-blur-md transition-all shadow-glass-sm hover:border-[#5C1D3A]/35"
+        aria-label="Switch Language"
+        aria-expanded={isOpen}
       >
-        <Globe className="h-4 w-4 text-blue-400" />
-        <span className="text-base leading-none">{currentLang.flag}</span>
-        <span className="font-mono text-xs text-slate-300">{currentLang.short}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+        <Globe className="h-3.5 w-3.5 text-[#E5C158]" />
+        <span className="text-sm leading-none">{currentLang.flag}</span>
+        <span className="font-semibold text-[#0F0F12]">{currentLang.short}</span>
+        <ChevronDown className="h-3 w-3 text-[#64748B]" />
       </button>
 
       {isOpen && (
-        <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-xl shadow-2xl bg-slate-900 border border-slate-800 ring-1 ring-black/5 divide-y divide-slate-800 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
-          <div className="py-1.5" role="menu">
-            <div className="px-3 py-1.5 text-xs font-semibold text-slate-400 font-mono tracking-wider uppercase">
-              Select Language
+        <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-2xl shadow-glass-md bg-[#E6F0FA]/95 backdrop-blur-xl border border-[#5C1D3A]/20 divide-y divide-[#5C1D3A]/10 z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+          <div className="py-1.5 px-1" role="menu">
+            <div className="px-3 py-1 text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+              Language
             </div>
             {LOCALES.map((locale) => {
               const isActive = locale.code === currentLocale;
@@ -77,18 +79,18 @@ export default function LanguageSwitcher() {
                 <button
                   key={locale.code}
                   onClick={() => handleLocaleChange(locale.code)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left transition ${
+                  className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl text-left transition-all ${
                     isActive
-                      ? 'bg-blue-600/20 text-blue-300 font-medium'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-[#F2F0FF] text-[#0F0F12] font-bold border border-[#5C1D3A]/15 shadow-xs'
+                      : 'text-[#475569] hover:bg-[#F2F0FF]/60 hover:text-[#0F0F12]'
                   }`}
                   role="menuitem"
                 >
                   <div className="flex items-center space-x-2.5">
-                    <span className="text-lg leading-none">{locale.flag}</span>
+                    <span className="text-base leading-none">{locale.flag}</span>
                     <span>{locale.label}</span>
                   </div>
-                  {isActive && <Check className="h-4 w-4 text-blue-400" />}
+                  {isActive && <Check className="h-3.5 w-3.5 text-[#E5C158]" />}
                 </button>
               );
             })}

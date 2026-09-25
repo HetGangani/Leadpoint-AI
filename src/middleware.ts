@@ -14,6 +14,8 @@ const PUBLIC_API_PATHS = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/logout',
+  '/api/webhooks/',
+  '/api/voice/twilio/',
 ];
 
 export default async function middleware(req: NextRequest) {
@@ -76,30 +78,33 @@ export default async function middleware(req: NextRequest) {
 
   const isAuthPage = routePath === '/login' || routePath === '/register';
   const isProtectedPage =
+    routePath.startsWith('/dashboard') ||
     routePath.startsWith('/leads') ||
     routePath.startsWith('/campaigns') ||
     routePath.startsWith('/voice') ||
     routePath.startsWith('/analytics') ||
+    routePath.startsWith('/settings') ||
     routePath.startsWith('/admin');
 
-  // If already logged in and visiting login/register -> redirect to analytics
+  // If already logged in and visiting login/register -> redirect to analytics dashboard
   if (isAuthPage && session) {
     const url = req.nextUrl.clone();
     url.pathname = `/${currentLocale}/analytics`;
     return NextResponse.redirect(url);
   }
 
-  // If visiting protected page without session -> redirect to login
+  // If visiting protected page without session -> redirect to localized login with redirect query
   if (isProtectedPage && !session) {
     const url = req.nextUrl.clone();
     url.pathname = `/${currentLocale}/login`;
+    url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
   }
 
-  // Admin page protection check
+  // Admin page protection check: non-admin gets redirected to unauthorized page
   if (isProtectedPage && routePath.startsWith('/admin') && session?.role !== 'ADMIN') {
     const url = req.nextUrl.clone();
-    url.pathname = `/${currentLocale}/analytics`;
+    url.pathname = `/${currentLocale}/unauthorized`;
     return NextResponse.redirect(url);
   }
 

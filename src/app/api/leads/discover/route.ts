@@ -72,7 +72,7 @@ export async function GET(request: Request) {
     }
 
     const whereClause: any = {};
-    if (session.role !== 'ADMIN' || profileId) {
+    if (session.role !== 'ADMIN') {
       if (!profileId) {
         return NextResponse.json({ success: true, data: [] });
       }

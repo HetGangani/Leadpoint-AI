@@ -14,13 +14,14 @@ import {
   Mail,
   Phone,
   CheckCircle2,
-  Zap,
   Globe,
-  Layers,
-  ArrowLeft,
+  SlidersHorizontal,
   ChevronRight,
   TrendingUp,
-  FileSpreadsheet
+  FileSpreadsheet,
+  X,
+  PhoneCall,
+  Loader2,
 } from 'lucide-react';
 import BusinessAnalyzeModal from './BusinessAnalyzeModal';
 import CsvImportModal from './CsvImportModal';
@@ -34,12 +35,13 @@ export default function LeadDiscoveryPage() {
   // Filters state
   const [selectedPlatform, setSelectedPlatform] = useState('ALL');
   const [selectedIndustry, setSelectedIndustry] = useState('ALL');
-  const [selectedLocation, setSelectedLocation] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedScore, setSelectedScore] = useState('ALL');
 
   // Modals state
   const [isAnalyzeOpen, setIsAnalyzeOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<any | null>(null);
 
   // Fetch leads on mount
   const fetchLeads = async () => {
@@ -107,7 +109,7 @@ export default function LeadDiscoveryPage() {
     'IT Services',
     'Public Sector',
   ];
-  const locations = ['ALL', 'San Francisco', 'Seattle', 'Chicago', 'New York', 'Atlanta', 'Washington, DC'];
+  const statuses = ['ALL', 'NEW', 'QUALIFIED', 'CONTACTED', 'INTERESTED', 'CALENDLY_SENT', 'BOOKED', 'UNRESPONSIVE'];
   const scores = [
     { label: 'All Scores', value: 'ALL' },
     { label: 'High Intent (>90%)', value: 'HIGH' },
@@ -116,458 +118,464 @@ export default function LeadDiscoveryPage() {
 
   // Filtering logic
   const filteredLeads = leads.filter((lead) => {
-    // Platform match
-    if (selectedPlatform !== 'ALL') {
-      const p = lead.sourcePlatform?.toLowerCase() || '';
-      if (!p.includes(selectedPlatform.toLowerCase())) return false;
+    if (selectedPlatform !== 'ALL' && !lead.sourcePlatform?.toLowerCase().includes(selectedPlatform.toLowerCase())) {
+      return false;
     }
-
-    // Industry match
-    if (selectedIndustry !== 'ALL') {
-      const ind = lead.industry?.toLowerCase() || '';
-      if (!ind.includes(selectedIndustry.toLowerCase())) return false;
+    if (selectedIndustry !== 'ALL' && !lead.industry?.toLowerCase().includes(selectedIndustry.toLowerCase())) {
+      return false;
     }
-
-    // Location match
-    if (selectedLocation !== 'ALL') {
-      let locStr = '';
-      try {
-        const enriched = JSON.parse(lead.enrichedData || '{}');
-        locStr = enriched.headquarters || '';
-      } catch (e) {}
-      if (!locStr.toLowerCase().includes(selectedLocation.toLowerCase())) return false;
+    if (selectedStatus !== 'ALL' && lead.status !== selectedStatus) {
+      return false;
     }
-
-    // Score match
-    if (selectedScore === 'HIGH' && (lead.relevanceScore || 0) < 0.9) return false;
-    if (selectedScore === 'MEDIUM' && (lead.relevanceScore || 0) < 0.8) return false;
-
-    // Search Query match
+    if (selectedScore === 'HIGH' && (lead.relevanceScore || 0) < 0.9) {
+      return false;
+    }
+    if (selectedScore === 'MEDIUM' && (lead.relevanceScore || 0) < 0.8) {
+      return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const nameMatch = lead.name?.toLowerCase().includes(q);
-      const companyMatch = lead.companyName?.toLowerCase().includes(q);
-      const emailMatch = lead.businessEmail?.toLowerCase().includes(q);
-      const postMatch = lead.postContent?.toLowerCase().includes(q);
-      if (!nameMatch && !companyMatch && !emailMatch && !postMatch) return false;
+      const matchName = lead.name?.toLowerCase().includes(q);
+      const matchCompany = lead.companyName?.toLowerCase().includes(q);
+      const matchEmail = lead.businessEmail?.toLowerCase().includes(q);
+      const matchContent = lead.postContent?.toLowerCase().includes(q);
+      if (!matchName && !matchCompany && !matchEmail && !matchContent) {
+        return false;
+      }
     }
-
     return true;
   });
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'NEW':
+        return 'bg-blue-500/10 text-blue-800 border-blue-400/30';
+      case 'QUALIFIED':
+        return 'bg-purple-500/10 text-purple-800 border-purple-400/30 font-semibold';
+      case 'INTERESTED':
+        return 'bg-teal-500/10 text-teal-800 border-teal-400/30 font-semibold';
+      case 'CONTACTED':
+      case 'FOLLOW_UP_REQUIRED':
+        return 'bg-[#FBBF24]/15 text-amber-900 border-[#FBBF24]/40 font-semibold';
+      case 'BOOKED':
+      case 'CALENDLY_SENT':
+        return 'bg-[#34D399]/15 text-emerald-900 border-[#34D399]/40 font-bold';
+      case 'NOT_INTERESTED':
+      case 'UNRESPONSIVE':
+        return 'bg-[#F87171]/15 text-rose-800 border-[#F87171]/40';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-300';
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <a
-            href="/en"
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition flex items-center text-xs space-x-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Home</span>
-          </a>
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400">
-              <Zap className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-                LeadPoint AI • Lead Discovery & Sourcing
-              </h1>
-              <p className="text-xs text-slate-400">Autonomous social requirement harvesting & intent scoring</p>
-            </div>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#5C1D3A]/15 pb-5">
+        <div>
+          <div className="inline-flex items-center space-x-1.5 bg-[#E6F0FA]/90 border border-[#5C1D3A]/20 text-[#0F0F12] text-xs font-semibold px-2.5 py-0.5 rounded-full mb-2 shadow-xs">
+            <Target className="h-3.5 w-3.5 text-[#E5C158]" />
+            <span>Lead Discovery & Sourcing</span>
           </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0F0F12]">
+            Prospect Accounts & Intent Signals
+          </h1>
+          <p className="text-slate-600 text-sm mt-1">
+            Search, filter, and qualify high-intent opportunities across social signals and CSV imports.
+          </p>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center space-x-3">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
+            type="button"
             onClick={() => setIsAnalyzeOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-2 transition"
+            className="btn-secondary-glass inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold"
           >
-            <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-            <span>Analyze Business ICP</span>
+            <Sparkles className="h-3.5 w-3.5 text-[#E5C158]" />
+            <span>Analyze ICP</span>
           </button>
 
           <button
-            onClick={handleHarvestLeads}
-            disabled={harvesting}
-            className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center space-x-2 shadow-lg shadow-blue-600/25 transition disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${harvesting ? 'animate-spin' : ''}`} />
-            <span>{harvesting ? 'Harvesting...' : 'Harvest Requirements'}</span>
-          </button>
-
-          <button
+            type="button"
             onClick={() => setIsImportOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-2 shadow-lg shadow-indigo-600/25 transition"
+            className="btn-secondary-glass inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold"
           >
-            <Upload className="h-3.5 w-3.5" />
+            <Upload className="h-3.5 w-3.5 text-[#0F0F12]" />
             <span>Import CSV</span>
           </button>
 
           <button
+            type="button"
             onClick={handleExportCSV}
-            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center space-x-2 shadow-lg shadow-emerald-600/25 transition"
+            className="btn-secondary-glass inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold"
           >
-            <Download className="h-3.5 w-3.5" />
-            <span>Export to CSV</span>
+            <Download className="h-3.5 w-3.5 text-[#0F0F12]" />
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleHarvestLeads}
+            disabled={harvesting}
+            className="btn-primary-black inline-flex items-center space-x-1.5 px-4 py-2 text-xs font-bold disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-[#F6E27A] ${harvesting ? 'animate-spin' : ''}`} />
+            <span>{harvesting ? 'Harvesting...' : 'Harvest Signals'}</span>
           </button>
         </div>
-      </header>
+      </div>
 
-      {/* Main Container */}
-      <div className="p-6 max-w-7xl mx-auto w-full space-y-6 flex-1">
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-5 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium block mb-1">Total Discovered Leads</span>
-              <span className="text-2xl font-bold text-white">{leads.length}</span>
-            </div>
-            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400 border border-blue-500/20">
-              <Target className="h-5 w-5" />
-            </div>
+      {/* Filter and Search Bar */}
+      <div className="glass-card-solid rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative w-full md:w-80">
+            <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, company, or requirement..."
+              className="w-full bg-[#F2F0FF]/60 border border-[#5C1D3A]/20 rounded-xl pl-9 pr-3 py-2 text-xs text-[#0F0F12] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F0F12]"
+            />
           </div>
 
-          <div className="p-5 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium block mb-1">High Intent (&gt;90% Score)</span>
-              <span className="text-2xl font-bold text-emerald-400">
-                {leads.filter((l) => (l.relevanceScore || 0) >= 0.9).length}
-              </span>
-            </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
-              <TrendingUp className="h-5 w-5" />
-            </div>
-          </div>
-
-          <div className="p-5 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium block mb-1">Harvested Sources</span>
-              <span className="text-2xl font-bold text-purple-400">4 Platforms</span>
-            </div>
-            <div className="p-3 bg-purple-500/10 rounded-xl text-purple-400 border border-purple-500/20">
-              <Globe className="h-5 w-5" />
-            </div>
-          </div>
-
-          <div className="p-5 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium block mb-1">Regex Validated Emails</span>
-              <span className="text-2xl font-bold text-indigo-400">
-                {leads.filter((l) => l.businessEmail).length}
-              </span>
-            </div>
-            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
-              <Mail className="h-5 w-5" />
-            </div>
+          <div className="flex items-center space-x-2 text-xs text-slate-600 self-end md:self-auto">
+            <Filter className="h-3.5 w-3.5 text-[#0F0F12]" />
+            <span>Showing <strong className="text-[#0F0F12] font-bold">{filteredLeads.length}</strong> of {leads.length} leads</span>
           </div>
         </div>
 
-        {/* Multi-Filter Bar & Search */}
-        <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-2xl space-y-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            {/* Search Input */}
-            <div className="relative w-full md:w-80">
-              <Search className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search leads, posts, or company..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* Filter Indicators */}
-            <div className="flex items-center space-x-2 text-xs text-slate-400">
-              <Filter className="h-4 w-4 text-blue-400" />
-              <span>Active Filters:</span>
-              <span className="font-semibold text-slate-200">
-                {filteredLeads.length} of {leads.length} leads matching
-              </span>
-            </div>
+        {/* Filter Selects */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-[#5C1D3A]/10 text-xs">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Platform</label>
+            <select
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value)}
+              className="w-full bg-[#F2F0FF]/60 border border-[#5C1D3A]/20 rounded-xl px-2.5 py-1.5 text-[#0F0F12] text-xs focus:outline-none focus:ring-1 focus:ring-[#0F0F12]"
+            >
+              {platforms.map((p) => (
+                <option key={p} value={p}>{p === 'ALL' ? 'All Platforms' : p}</option>
+              ))}
+            </select>
           </div>
 
-          {/* Filter Dropdown Controls */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-800/80 text-xs">
-            {/* Platform Filter */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Platform Source</label>
-              <select
-                value={selectedPlatform}
-                onChange={(e) => setSelectedPlatform(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                {platforms.map((p) => (
-                  <option key={p} value={p}>
-                    {p === 'ALL' ? 'All Platforms' : p}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Industry</label>
+            <select
+              value={selectedIndustry}
+              onChange={(e) => setSelectedIndustry(e.target.value)}
+              className="w-full bg-[#F2F0FF]/60 border border-[#5C1D3A]/20 rounded-xl px-2.5 py-1.5 text-[#0F0F12] text-xs focus:outline-none focus:ring-1 focus:ring-[#0F0F12]"
+            >
+              {industries.map((ind) => (
+                <option key={ind} value={ind}>{ind === 'ALL' ? 'All Industries' : ind}</option>
+              ))}
+            </select>
+          </div>
 
-            {/* Industry Filter */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Industry Vertical</label>
-              <select
-                value={selectedIndustry}
-                onChange={(e) => setSelectedIndustry(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                {industries.map((ind) => (
-                  <option key={ind} value={ind}>
-                    {ind === 'ALL' ? 'All Industries' : ind}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Pipeline Status</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full bg-[#F2F0FF]/60 border border-[#5C1D3A]/20 rounded-xl px-2.5 py-1.5 text-[#0F0F12] text-xs focus:outline-none focus:ring-1 focus:ring-[#0F0F12]"
+            >
+              {statuses.map((st) => (
+                <option key={st} value={st}>{st === 'ALL' ? 'All Statuses' : st}</option>
+              ))}
+            </select>
+          </div>
 
-            {/* Location Filter */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Location / HQ</label>
-              <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                {locations.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc === 'ALL' ? 'All Locations' : loc}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Relevance Score Filter */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Relevance Score</label>
-              <select
-                value={selectedScore}
-                onChange={(e) => setSelectedScore(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
-              >
-                {scores.map((sc) => (
-                  <option key={sc.value} value={sc.value}>
-                    {sc.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Relevance Score</label>
+            <select
+              value={selectedScore}
+              onChange={(e) => setSelectedScore(e.target.value)}
+              className="w-full bg-[#F2F0FF]/60 border border-[#5C1D3A]/20 rounded-xl px-2.5 py-1.5 text-[#0F0F12] text-xs focus:outline-none focus:ring-1 focus:ring-[#0F0F12]"
+            >
+              {scores.map((sc) => (
+                <option key={sc.value} value={sc.value}>{sc.label}</option>
+              ))}
+            </select>
           </div>
         </div>
+      </div>
 
-        {/* Lead List / Cards Grid */}
-        {loading ? (
-          <div className="p-12 text-center text-slate-400 space-y-3">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto text-blue-500" />
-            <p className="text-xs">Loading social requirement leads...</p>
-          </div>
-        ) : filteredLeads.length === 0 ? (
-          <div className="p-12 text-center bg-slate-900/50 border border-slate-800 rounded-2xl text-slate-400 space-y-3">
-            <Target className="h-10 w-10 mx-auto text-slate-600" />
-            <p className="text-sm font-semibold text-slate-300">No matching leads found</p>
-            <p className="text-xs text-slate-500">Try adjusting your multi-filter selections or run "Harvest Requirements".</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredLeads.map((lead) => {
-              const scorePercent = Math.round((lead.relevanceScore || 0.85) * 100);
-              let location = 'Remote / Unspecified';
-              let techStack: string[] = [];
-              try {
-                const enriched = JSON.parse(lead.enrichedData || '{}');
-                if (enriched.headquarters) location = enriched.headquarters;
-                if (Array.isArray(enriched.techStack)) techStack = enriched.techStack;
-              } catch (e) {}
+      {/* Main Content: Desktop Table & Mobile Cards */}
+      {loading ? (
+        <div className="p-12 text-center text-slate-500 space-y-2 glass-card-solid rounded-2xl">
+          <Loader2 className="h-6 w-6 animate-spin mx-auto text-[#0F0F12]" />
+          <p className="text-xs font-semibold text-slate-700">Loading leads database...</p>
+        </div>
+      ) : filteredLeads.length === 0 ? (
+        <div className="p-12 text-center glass-card-solid rounded-2xl text-slate-500 space-y-2">
+          <Target className="h-8 w-8 mx-auto text-slate-400" />
+          <p className="text-sm font-bold text-[#0F0F12]">No leads match current filters</p>
+          <p className="text-xs text-slate-500">Try changing your search keywords or click "Harvest Signals".</p>
+        </div>
+      ) : (
+        <>
+          {/* Desktop Table View (Hidden on mobile) */}
+          <div className="hidden md:block glass-card-solid rounded-2xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-[#E6F0FA]/90 border-b border-[#5C1D3A]/15 text-slate-700 uppercase font-bold text-[11px]">
+                  <tr>
+                    <th scope="col" className="px-5 py-3.5">Lead & Contact</th>
+                    <th scope="col" className="px-5 py-3.5">Company & Vertical</th>
+                    <th scope="col" className="px-4 py-3.5">Platform</th>
+                    <th scope="col" className="px-4 py-3.5">Score</th>
+                    <th scope="col" className="px-4 py-3.5">Status</th>
+                    <th scope="col" className="px-5 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#5C1D3A]/10">
+                  {filteredLeads.map((lead) => {
+                    const score = Math.round((lead.relevanceScore || 0.85) * 100);
+                    return (
+                      <tr key={lead.id} className="hover:bg-[#E6F0FA]/60 transition-colors group">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 rounded-xl bg-[#0F0F12] text-[#F6E27A] border border-[#E5C158]/30 font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                              {lead.name ? lead.name.charAt(0).toUpperCase() : 'L'}
+                            </div>
+                            <div>
+                              <div className="font-bold text-[#0F0F12]">{lead.name}</div>
+                              <div className="text-[11px] text-slate-500 flex items-center space-x-1 mt-0.5">
+                                <Mail className="h-3 w-3 text-slate-400" />
+                                <span>{lead.businessEmail}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
 
-              return (
-                <div
-                  key={lead.id}
-                  className="p-5 bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl shadow-lg transition space-y-4"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-                    <div className="flex items-start space-x-3">
-                      <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-blue-400">
-                        <Building2 className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <h3 className="font-bold text-white text-sm">{lead.companyName}</h3>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 border border-blue-500/20 text-blue-300">
-                            {lead.industry}
+                        <td className="px-5 py-3.5">
+                          <div className="font-semibold text-[#0F0F12]">{lead.companyName}</div>
+                          <div className="text-[11px] text-slate-500">{lead.industry}</div>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <span className="inline-block px-2.5 py-0.5 bg-white/70 border border-[#5C1D3A]/15 rounded-md text-[11px] text-slate-800 font-medium">
+                            {lead.sourcePlatform || 'LinkedIn'}
                           </span>
-                        </div>
-                        <p className="text-xs text-slate-400 flex items-center space-x-2 mt-0.5">
-                          <span>{lead.name}</span>
-                          <span>•</span>
-                          <span>{lead.companySize}</span>
-                          <span>•</span>
-                          <span>{location}</span>
-                        </p>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold border ${
+                            score >= 90
+                              ? 'bg-[#34D399]/15 text-emerald-900 border-[#34D399]/40'
+                              : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                          }`}>
+                            {score}% Match
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusBadge(lead.status)}`}>
+                            {lead.status}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="inline-flex items-center space-x-2">
+                            <a
+                              href={`/voice?leadId=${lead.id}`}
+                              className="p-1.5 rounded-lg text-slate-600 hover:text-[#0F0F12] hover:bg-[#E6F0FA] border border-transparent hover:border-[#5C1D3A]/15 transition"
+                              title="Launch Voice SDR Call"
+                            >
+                              <PhoneCall className="h-4 w-4" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLeadForDetail(lead)}
+                              className="btn-secondary-glass inline-flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold"
+                            >
+                              <span>Inspect</span>
+                              <ChevronRight className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Card View (Hidden on desktop) */}
+          <div className="md:hidden space-y-3">
+            {filteredLeads.map((lead) => {
+              const score = Math.round((lead.relevanceScore || 0.85) * 100);
+              return (
+                <div key={lead.id} className="glass-card-solid rounded-2xl p-4 shadow-sm space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-extrabold text-[#0F0F12] text-sm">{lead.name}</h3>
+                      <div className="text-xs text-slate-600 flex items-center space-x-1 mt-0.5">
+                        <Building2 className="h-3 w-3 text-slate-400" />
+                        <span>{lead.companyName}</span>
                       </div>
                     </div>
-
-                    {/* Platform & Status Badges */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {lead.status === 'CALENDLY_SENT' && (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center gap-1">
-                          📱 Calendly Link Sent
-                        </span>
-                      )}
-                      {lead.status === 'BOOKED' && (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
-                          📅 Meeting Booked
-                        </span>
-                      )}
-                      {lead.status === 'FOLLOW_UP_REQUIRED' && (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center gap-1">
-                          ⚠️ Re-call / Follow-up Needed
-                        </span>
-                      )}
-                      {lead.status === 'INTERESTED' && (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center gap-1">
-                          🔥 High Intent
-                        </span>
-                      )}
-
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-mono bg-purple-500/10 border border-purple-500/20 text-purple-300">
-                        {lead.sourcePlatform}
-                      </span>
-                      <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-xs">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span>{scorePercent}% Match</span>
-                      </div>
-                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusBadge(lead.status)}`}>
+                      {lead.status}
+                    </span>
                   </div>
 
-                  {/* Requirement Post Text */}
-                  {lead.postContent && (
-                    <div className="p-3.5 bg-slate-950/80 border border-slate-800/80 rounded-xl text-xs text-slate-300 leading-relaxed font-sans">
-                      <span className="text-slate-500 font-mono text-[10px] block mb-1 uppercase tracking-wider">
-                        Requirement Post Text
-                      </span>
-                      "{lead.postContent}"
+                  <div className="space-y-1 text-xs text-slate-600">
+                    <div className="flex items-center space-x-1.5 truncate">
+                      <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                      <span className="truncate">{lead.businessEmail}</span>
                     </div>
-                  )}
-
-                  {/* Contact Availability & Metadata Footer */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1 text-xs">
-                    <div className="flex flex-wrap items-center gap-4 text-slate-400">
-                      <div className="flex items-center space-x-1.5 text-slate-300">
-                        <Mail className="h-3.5 w-3.5 text-indigo-400" />
-                        <span className="font-mono text-[11px]">{lead.businessEmail}</span>
+                    {lead.phone && (
+                      <div className="flex items-center space-x-1.5">
+                        <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span>{lead.phone}</span>
                       </div>
-                      {lead.phone && (
-                        <div className="flex items-center space-x-1.5 text-slate-300">
-                          <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                          <span className="font-mono text-[11px]">{lead.phone}</span>
-                        </div>
-                      )}
-                      <div className="text-[11px] text-slate-500">
-                        Discovered: {new Date(lead.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
+                    )}
+                  </div>
 
-                    {/* Action Controls for Voice Calling / Calendly / Follow-up */}
-                    <div className="flex items-center space-x-2">
-                      {/* Call Lead Button */}
-                      <button
-                        onClick={async () => {
-                          try {
-                            const res = await fetch('/api/voice/call', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ leadId: lead.id }),
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                              alert(`Call initiated via ${data.data.provider.toUpperCase()} provider!\nStatus: ${data.data.status.toUpperCase()}\nProvider Call ID: ${data.data.providerCallId}`);
-                            } else {
-                              alert(`Call initiation failed: ${data.error}`);
-                            }
-                            fetchLeads();
-                          } catch (err: any) {
-                            alert(`Error calling lead: ${err.message}`);
-                          }
-                        }}
-                        className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 transition"
-                      >
-                        <Phone className="h-3.5 w-3.5" />
-                        <span>Call Lead</span>
-                      </button>
-
-                      {/* Simulate AI Call Link Button */}
-                      <a
-                        href={`/en/voice?leadId=${lead.id}`}
-                        className="px-3 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-[11px] font-semibold flex items-center space-x-1.5 transition"
-                      >
-                        <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-                        <span>Simulate Call</span>
-                      </a>
-
-                      {lead.status === 'CALENDLY_SENT' && (
-                        <>
-                          <button
-                            onClick={async () => {
-                              await fetch(`/api/webhooks/calendly`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ leadId: lead.id, inviteeEmail: lead.businessEmail }),
-                              });
-                              fetchLeads();
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 text-[11px] font-semibold transition"
-                          >
-                            Simulate Booking
-                          </button>
-                          <button
-                            onClick={async () => {
-                              await fetch(`/api/leads/${lead.id}/calendly-check?flagFollowUp=true`);
-                              fetchLeads();
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-300 hover:bg-amber-600/30 text-[11px] font-semibold transition"
-                          >
-                            Flag Re-call Needed
-                          </button>
-                        </>
-                      )}
-
-                      {lead.originalPostUrl && (
-                        <a
-                          href={lead.originalPostUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center space-x-1.5 text-blue-400 hover:text-blue-300 text-xs font-medium transition"
-                        >
-                          <span>View Original Post</span>
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-[#5C1D3A]/10 text-xs">
+                    <span className="font-bold text-[#0F0F12] bg-[#E6F0FA] border border-[#5C1D3A]/20 px-2.5 py-0.5 rounded-md">
+                      {score}% Relevance
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLeadForDetail(lead)}
+                      className="btn-secondary-glass inline-flex items-center space-x-1 px-3 py-1 text-xs font-semibold"
+                    >
+                      <span>View Details</span>
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
                   </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
-      {/* Business Analysis Modal */}
+      {/* Lead Detail Slide-over / Modal */}
+      {selectedLeadForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F0F12]/60 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="glass-modal rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-[#5C1D3A]/15 flex items-center justify-between bg-[#E6F0FA]/60">
+              <div>
+                <h3 className="text-base font-extrabold text-[#0F0F12]">{selectedLeadForDetail.name}</h3>
+                <p className="text-xs text-slate-600">{selectedLeadForDetail.companyName} • {selectedLeadForDetail.industry}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLeadForDetail(null)}
+                className="p-1.5 text-slate-500 hover:text-[#0F0F12] rounded-xl hover:bg-white/60 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700">
+              <div className="flex items-center justify-between p-3.5 bg-white/70 rounded-xl border border-[#5C1D3A]/15">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Pipeline Status</span>
+                  <div className="font-extrabold text-[#0F0F12]">{selectedLeadForDetail.status}</div>
+                </div>
+                <div className="space-y-0.5 text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Relevance Match</span>
+                  <div className="font-extrabold text-[#0F0F12]">
+                    {Math.round((selectedLeadForDetail.relevanceScore || 0.85) * 100)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact info */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-600 text-xs uppercase tracking-wider">Contact Details</h4>
+                <div className="p-3.5 bg-white/70 border border-[#5C1D3A]/15 rounded-xl space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Mail className="h-3.5 w-3.5 text-[#0F0F12]" />
+                    <span className="font-medium text-[#0F0F12]">{selectedLeadForDetail.businessEmail}</span>
+                  </div>
+                  {selectedLeadForDetail.phone && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="h-3.5 w-3.5 text-[#0F0F12]" />
+                      <span className="font-medium text-[#0F0F12]">{selectedLeadForDetail.phone}</span>
+                    </div>
+                  )}
+                  {selectedLeadForDetail.originalPostUrl && (
+                    <div className="flex items-center space-x-2 pt-1 border-t border-[#5C1D3A]/10">
+                      <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                      <a
+                        href={selectedLeadForDetail.originalPostUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#0F0F12] underline hover:text-[#5C1D3A] truncate max-w-sm font-medium"
+                      >
+                        {selectedLeadForDetail.originalPostUrl}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Requirement Post Content */}
+              {selectedLeadForDetail.postContent && (
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-slate-600 text-xs uppercase tracking-wider">Sourced Intent Requirement</h4>
+                  <div className="p-3.5 bg-white/70 border border-[#5C1D3A]/15 rounded-xl italic text-slate-800 leading-relaxed">
+                    "{selectedLeadForDetail.postContent}"
+                  </div>
+                </div>
+              )}
+
+              {/* Next best action recommendation */}
+              <div className="p-3.5 bg-[#E6F0FA]/90 border border-[#5C1D3A]/20 rounded-xl text-[#0F0F12] space-y-1 shadow-xs">
+                <span className="font-bold text-[11px] uppercase tracking-wider text-[#0F0F12] flex items-center space-x-1">
+                  <Sparkles className="h-3 w-3 text-[#E5C158]" />
+                  <span>Suggested Next Action:</span>
+                </span>
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  {selectedLeadForDetail.status === 'CALENDLY_SENT'
+                    ? '📱 Await prospect booking via SMS or trigger follow-up.'
+                    : selectedLeadForDetail.status === 'QUALIFIED'
+                    ? '📞 Dispatch Voice AI Agent to qualify timeline and budget.'
+                    : 'Dispatch introductory solution deck and case study.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 border-t border-[#5C1D3A]/15 bg-[#E6F0FA]/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedLeadForDetail(null)}
+                className="btn-primary-black px-5 py-2 text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
       <BusinessAnalyzeModal
         isOpen={isAnalyzeOpen}
         onClose={() => setIsAnalyzeOpen(false)}
-        onAnalysisSuccess={fetchLeads}
+        onAnalysisSuccess={() => {
+          setIsAnalyzeOpen(false);
+          fetchLeads();
+        }}
       />
 
-      {/* CSV Import Modal */}
       <CsvImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
-        onImportSuccess={fetchLeads}
+        onImportSuccess={() => {
+          setIsImportOpen(false);
+          fetchLeads();
+        }}
       />
-    </main>
+    </div>
   );
 }

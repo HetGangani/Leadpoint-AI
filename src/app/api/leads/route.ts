@@ -12,17 +12,16 @@ export async function GET(request: Request) {
       );
     }
 
-    // Resolve company profile ID from session or database
-    let profileId = session.companyProfileId;
-    if (!profileId && session.role !== 'ADMIN') {
-      const profile = await prisma.companyProfile.findUnique({
-        where: { userId: session.id },
-      });
-      profileId = profile?.id;
-    }
-
+    // Enforce tenant isolation: non-admins can only see their own company leads
     const whereClause: any = {};
-    if (session.role !== 'ADMIN' || profileId) {
+    if (session.role !== 'ADMIN') {
+      let profileId = session.companyProfileId;
+      if (!profileId) {
+        const profile = await prisma.companyProfile.findUnique({
+          where: { userId: session.id },
+        });
+        profileId = profile?.id;
+      }
       if (!profileId) {
         return NextResponse.json({ success: true, data: [] });
       }

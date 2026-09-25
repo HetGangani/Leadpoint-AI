@@ -858,9 +858,9 @@ export default function VoiceAgentSimulator({
 
   if (isLoadingData) {
     return (
-      <div className="w-full max-w-6xl mx-auto p-12 text-center text-slate-400 bg-slate-900/60 border border-slate-800 rounded-3xl">
-        <RefreshCw className="h-8 w-8 animate-spin mx-auto text-blue-500 mb-3" />
-        <p className="text-sm font-semibold text-white">Loading Authenticated Tenant Leads...</p>
+      <div className="w-full max-w-6xl mx-auto p-12 text-center text-slate-500 glass-card-solid rounded-3xl shadow-sm">
+        <RefreshCw className="h-8 w-8 animate-spin mx-auto text-[#0F0F12] mb-3" />
+        <p className="text-sm font-bold text-[#0F0F12]">Loading Authenticated Tenant Leads...</p>
       </div>
     );
   }
@@ -868,22 +868,19 @@ export default function VoiceAgentSimulator({
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
       {/* Top Header Card */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
-        <div className="absolute -right-20 -top-20 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+      <div className="glass-card-solid rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center space-x-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full mb-2">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="inline-flex items-center space-x-2 bg-[#E6F0FA] border border-[#5C1D3A]/20 text-[#0F0F12] text-xs px-3 py-1 rounded-full mb-2 font-semibold shadow-xs">
+              <Sparkles className="h-3.5 w-3.5 text-[#E5C158]" />
               <span>
                 {company?.name ? `${company.name} AI SDR` : 'LeadPoint AI Platform'} • Gemini Voice Pipeline
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-2xl font-extrabold text-[#0F0F12] tracking-tight flex items-center gap-2">
               <span>Interactive AI Voice Agent Simulator</span>
             </h2>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-600">
               Interactive voice simulation using real authenticated tenant leads and dynamic multi-turn qualification.
             </p>
           </div>
@@ -892,14 +889,14 @@ export default function VoiceAgentSimulator({
           <div className="flex flex-wrap items-center gap-3">
             {/* Authenticated Leads Dropdown */}
             {leadsList.length > 0 && (
-              <div className="flex items-center space-x-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800">
-                <Users className="h-4 w-4 text-emerald-400 ml-2" />
-                <span className="text-xs text-slate-400 font-medium">Select Lead:</span>
+              <div className="flex items-center space-x-2 bg-white/70 p-2 rounded-2xl border border-[#5C1D3A]/15 shadow-xs">
+                <Users className="h-4 w-4 text-emerald-700 ml-2" />
+                <span className="text-xs text-slate-700 font-bold">Lead:</span>
                 <select
                   value={lead?.id || ''}
                   onChange={(e) => handleLeadChange(e.target.value)}
                   disabled={isCallActive}
-                  className="bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-700 focus:outline-none focus:border-blue-500 cursor-pointer disabled:opacity-50 max-w-[200px] truncate"
+                  className="bg-[#F2F0FF]/60 text-[#0F0F12] text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#5C1D3A]/20 focus:outline-none focus:ring-1 focus:ring-[#0F0F12] cursor-pointer disabled:opacity-50 max-w-[200px] truncate"
                 >
                   {leadsList.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -911,14 +908,14 @@ export default function VoiceAgentSimulator({
             )}
 
             {/* Language / Locale Selector */}
-            <div className="flex items-center space-x-3 bg-slate-950/80 p-2 rounded-2xl border border-slate-800">
-              <Globe className="h-4 w-4 text-blue-400 ml-2" />
-              <span className="text-xs text-slate-400 font-medium">Locale:</span>
+            <div className="flex items-center space-x-3 bg-white/70 p-2 rounded-2xl border border-[#5C1D3A]/15 shadow-xs">
+              <Globe className="h-4 w-4 text-[#0F0F12] ml-2" />
+              <span className="text-xs text-slate-700 font-bold">Locale:</span>
               <select
                 value={locale}
                 onChange={(e) => setLocale(e.target.value as SupportedLocale)}
                 disabled={isCallActive}
-                className="bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-700 focus:outline-none focus:border-blue-500 cursor-pointer disabled:opacity-50"
+                className="bg-[#F2F0FF]/60 text-[#0F0F12] text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#5C1D3A]/20 focus:outline-none focus:ring-1 focus:ring-[#0F0F12] cursor-pointer disabled:opacity-50"
               >
                 <option value="en">English (US)</option>
                 <option value="es">Spanish (Español)</option>
@@ -931,19 +928,19 @@ export default function VoiceAgentSimulator({
         </div>
       </div>
 
-      {/* Browser Speech Support Warning Banner (Phase 5 requirement) */}
+      {/* Browser Speech Support Warning Banner */}
       {!isSpeechSupported && (
-        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs px-5 py-3 rounded-2xl flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+        <div className="bg-[#FBBF24]/15 border border-[#FBBF24]/40 text-amber-900 text-xs px-5 py-3 rounded-2xl flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
           <span>Speech recognition is not supported in this browser. Please use Google Chrome.</span>
         </div>
       )}
 
-      {/* Mic Error Banner (PART 2) */}
+      {/* Mic Error Banner */}
       {micError && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs px-5 py-3 rounded-2xl flex items-center justify-between gap-2">
+        <div className="bg-[#F87171]/15 border border-[#F87171]/40 text-rose-900 text-xs px-5 py-3 rounded-2xl flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+            <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
             <span>{micError}</span>
           </span>
           <div className="flex items-center space-x-2">
@@ -952,11 +949,11 @@ export default function VoiceAgentSimulator({
                 setMicError(null);
                 toggleMicrophone();
               }}
-              className="px-2.5 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-white font-semibold text-[11px] transition"
+              className="px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition shadow-xs"
             >
               Retry Microphone
             </button>
-            <button onClick={() => setMicError(null)} className="text-slate-400 hover:text-white font-mono text-[10px]">
+            <button onClick={() => setMicError(null)} className="text-slate-600 hover:text-[#0F0F12] font-mono text-[10px]">
               Dismiss
             </button>
           </div>
@@ -965,12 +962,12 @@ export default function VoiceAgentSimulator({
 
       {/* API Error Banner */}
       {apiError && (
-        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs px-5 py-3 rounded-2xl flex items-center justify-between gap-2">
+        <div className="bg-[#F87171]/15 border border-[#F87171]/40 text-rose-900 text-xs px-5 py-3 rounded-2xl flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+            <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
             <span>API Error: {apiError}</span>
           </span>
-          <button onClick={() => setApiError(null)} className="text-slate-400 hover:text-white font-mono text-[10px]">
+          <button onClick={() => setApiError(null)} className="text-slate-600 hover:text-[#0F0F12] font-mono text-[10px]">
             Dismiss
           </button>
         </div>
@@ -978,17 +975,17 @@ export default function VoiceAgentSimulator({
 
       {/* If No Lead Selected */}
       {!lead ? (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-12 text-center space-y-4">
-          <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl inline-block">
+        <div className="glass-card-solid rounded-3xl p-12 text-center space-y-4 shadow-sm">
+          <div className="p-4 bg-[#FBBF24]/20 border border-[#FBBF24]/40 text-amber-700 rounded-2xl inline-block">
             <AlertTriangle className="h-8 w-8" />
           </div>
-          <h3 className="text-lg font-bold text-white">No lead selected</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
+          <h3 className="text-lg font-extrabold text-[#0F0F12]">No lead selected</h3>
+          <p className="text-xs text-slate-600 max-w-md mx-auto">
             You do not currently have a selected lead for this session. Discover or import leads in the Lead Discovery page to begin AI voice interactions.
           </p>
           <a
             href="/en/leads"
-            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/30 transition"
+            className="btn-primary-black inline-flex items-center space-x-2 px-5 py-2.5 text-xs font-bold"
           >
             <span>Go to Lead Discovery</span>
           </a>
@@ -997,44 +994,54 @@ export default function VoiceAgentSimulator({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Call Control Visualizer & Status */}
           <div className="lg:col-span-5 space-y-6">
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col items-center text-center relative overflow-hidden">
-              {/* Prospect Badge - Authoritative from DB */}
-              <div className="w-full bg-slate-950/60 rounded-2xl p-4 border border-slate-800/80 mb-6 text-left">
+            <div className="glass-card-solid rounded-3xl p-6 shadow-sm flex flex-col items-center text-center relative overflow-hidden">
+              {/* Prospect Badge */}
+              <div className="w-full bg-white/70 rounded-2xl p-4 border border-[#5C1D3A]/15 mb-6 text-left shadow-xs">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-                    Authoritative Database Lead
+                  <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider font-bold">
+                    Database Lead Record
                   </span>
-                  <span className="text-[10px] font-mono bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">
-                    ID: {lead.id.substring(0, 10)}...
+                  <span className="text-[10px] font-mono bg-[#E6F0FA] border border-[#5C1D3A]/20 text-[#0F0F12] px-2 py-0.5 rounded-full font-bold">
+                    ID: {lead.id.substring(0, 8)}...
                   </span>
                 </div>
-                <div className="font-semibold text-white text-base">{lead.name}</div>
-                <div className="text-xs text-slate-400">
+                <div className="font-extrabold text-[#0F0F12] text-base">{lead.name}</div>
+                <div className="text-xs text-slate-600">
                   {lead.companyName} • {lead.industry}
                 </div>
                 <div className="flex items-center space-x-1.5 mt-2">
-                  <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                  <span className={`text-xs font-mono font-medium ${lead.phone ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  <Phone className="h-3.5 w-3.5 text-emerald-700" />
+                  <span className={`text-xs font-mono font-bold ${lead.phone ? 'text-emerald-800' : 'text-amber-800'}`}>
                     {lead.phone || 'No phone number on record'}
                   </span>
                 </div>
               </div>
 
-              {/* Audio Waveform & Pulse Animation */}
+              {/* Audio Waveform & Pulse Ring Animation */}
               <div className="relative my-4 flex items-center justify-center">
                 {isCallActive && (
                   <>
                     <div
-                      className={`absolute w-36 h-36 rounded-full border-2 border-blue-500/30 animate-ping ${
-                        isSpeaking ? 'scale-125 border-purple-500/50' : ''
+                      className={`absolute w-36 h-36 rounded-full border-2 animate-ping ${
+                        agentState === 'SPEAKING'
+                          ? 'border-[#E5C158]/50'
+                          : agentState === 'LISTENING'
+                          ? 'border-[#34D399]/60'
+                          : agentState === 'PROCESSING'
+                          ? 'border-[#FBBF24]/50'
+                          : 'border-[#34D399]/50'
                       }`}
                     />
                     <div
-                      className={`absolute w-28 h-28 rounded-full bg-gradient-to-r ${
-                        isSpeaking
-                          ? 'from-blue-600/30 to-purple-600/30'
-                          : 'from-blue-600/10 to-indigo-600/10'
-                      } blur-xl`}
+                      className={`absolute w-28 h-28 rounded-full blur-xl ${
+                        agentState === 'SPEAKING'
+                          ? 'bg-[#E5C158]/20'
+                          : agentState === 'LISTENING'
+                          ? 'bg-[#34D399]/20'
+                          : agentState === 'PROCESSING'
+                          ? 'bg-[#FBBF24]/20'
+                          : 'bg-[#34D399]/20'
+                      }`}
                     />
                   </>
                 )}
@@ -1042,17 +1049,23 @@ export default function VoiceAgentSimulator({
                 <div
                   className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ${
                     isCallActive
-                      ? isSpeaking
-                        ? 'bg-gradient-to-tr from-purple-600 to-indigo-500 text-white shadow-lg shadow-purple-500/40 ring-4 ring-purple-500/20'
-                        : 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30'
-                      : 'bg-slate-800 text-slate-400'
+                      ? agentState === 'SPEAKING'
+                        ? 'bg-[#0F0F12] text-[#F6E27A] border border-[#E5C158]/40 shadow-lg shadow-[#0F0F12]/30 ring-4 ring-[#E6F0FA]'
+                        : agentState === 'LISTENING'
+                        ? 'bg-[#34D399] text-white shadow-lg shadow-[#34D399]/30 ring-4 ring-[#34D399]/20'
+                        : agentState === 'PROCESSING'
+                        ? 'bg-[#FBBF24] text-white shadow-lg shadow-[#FBBF24]/30 ring-4 ring-[#FBBF24]/20'
+                        : 'bg-[#0F0F12] text-white shadow-lg ring-4 ring-[#E6F0FA]'
+                      : 'bg-white/80 text-slate-400 border border-[#5C1D3A]/20'
                   }`}
                 >
                   {isCallActive ? (
-                    isSpeaking ? (
-                      <Volume2 className="h-10 w-10 animate-pulse" />
+                    agentState === 'SPEAKING' ? (
+                      <Volume2 className="h-10 w-10 animate-pulse text-[#F6E27A]" />
+                    ) : agentState === 'LISTENING' ? (
+                      <Mic className="h-10 w-10 animate-pulse" />
                     ) : (
-                      <PhoneCall className="h-10 w-10" />
+                      <PhoneCall className="h-10 w-10 text-[#F6E27A]" />
                     )
                   ) : (
                     <PhoneOff className="h-10 w-10" />
@@ -1060,25 +1073,25 @@ export default function VoiceAgentSimulator({
                 </div>
               </div>
 
-              {/* Call State & Timer (Phase 6 Real State Badges) */}
+              {/* Call State & Timer */}
               <div className="mt-2 space-y-1">
-                <div className="font-mono text-2xl font-bold text-white tracking-widest">
+                <div className="font-mono text-3xl font-extrabold text-[#0F0F12] tracking-widest">
                   {isCallActive ? formatTime(callDuration) : '00:00'}
                 </div>
-                <div className="text-xs font-medium text-slate-400 flex items-center justify-center gap-1.5">
+                <div className="text-xs font-semibold text-slate-700 flex items-center justify-center gap-1.5">
                   <span
-                    className={`w-2 h-2 rounded-full ${
+                    className={`w-2.5 h-2.5 rounded-full ${
                       agentState === 'SPEAKING'
-                        ? 'bg-purple-400 animate-pulse'
+                        ? 'bg-[#E5C158] animate-pulse'
                         : agentState === 'LISTENING'
-                        ? 'bg-emerald-400 animate-pulse'
+                        ? 'bg-[#34D399] animate-pulse'
                         : agentState === 'PROCESSING'
-                        ? 'bg-blue-400 animate-pulse'
+                        ? 'bg-[#FBBF24] animate-pulse'
                         : agentState === 'ERROR'
-                        ? 'bg-rose-500'
+                        ? 'bg-[#F87171]'
                         : isCallActive
-                        ? 'bg-emerald-500'
-                        : 'bg-slate-600'
+                        ? 'bg-[#34D399]'
+                        : 'bg-slate-400'
                     }`}
                   />
                   <span>
@@ -1087,11 +1100,11 @@ export default function VoiceAgentSimulator({
                       : agentState === 'PROCESSING'
                       ? 'Processing Turn...'
                       : agentState === 'LISTENING'
-                      ? 'Microphone Listening...'
+                      ? 'Active Listening...'
                       : agentState === 'ERROR'
                       ? 'Microphone Error'
                       : isCallActive
-                      ? 'Call Active'
+                      ? 'Call Connected'
                       : 'Call Disconnected'}
                   </span>
                 </div>
@@ -1100,12 +1113,12 @@ export default function VoiceAgentSimulator({
               {/* Real-time Intent & Stage Badges */}
               {isCallActive && (
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 font-mono border border-slate-700">
+                  <span className="text-xs px-3 py-1 rounded-full bg-white/80 text-[#0F0F12] font-mono border border-[#5C1D3A]/20 font-bold">
                     Stage: {currentStage}
                   </span>
                   {isHighIntent && (
-                    <span className="text-xs px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 flex items-center gap-1 animate-bounce">
-                      <Flame className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="text-xs px-3 py-1 rounded-full bg-[#FBBF24]/20 text-amber-900 font-extrabold border border-[#FBBF24]/40 flex items-center gap-1 shadow-xs">
+                      <Flame className="h-3.5 w-3.5 text-amber-600" />
                       <span>🔥 HIGH INTENT DETECTED</span>
                     </span>
                   )}
@@ -1118,17 +1131,17 @@ export default function VoiceAgentSimulator({
                   <button
                     onClick={handleStartCall}
                     disabled={isProcessing}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white font-semibold text-sm shadow-xl shadow-emerald-600/20 transition flex items-center justify-center space-x-2"
+                    className="w-full btn-primary-black py-3 px-4 text-sm font-bold flex items-center justify-center space-x-2"
                   >
-                    <PhoneCall className="h-4 w-4" />
+                    <PhoneCall className="h-4 w-4 text-[#F6E27A]" />
                     <span>Start Voice Call Simulation</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => handleEndCall()}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-semibold text-sm shadow-xl shadow-red-600/20 transition flex items-center justify-center space-x-2"
+                    className="w-full btn-danger-crimson py-3 px-4 text-sm font-bold flex items-center justify-center space-x-2"
                   >
-                    <PhoneOff className="h-4 w-4" />
+                    <PhoneOff className="h-4 w-4 text-white" />
                     <span>End Call & Process Webhook</span>
                   </button>
                 )}
@@ -1137,24 +1150,23 @@ export default function VoiceAgentSimulator({
                 {isCallActive && (
                   <div className="space-y-2 pt-2">
                     <div className="grid grid-cols-3 gap-2">
-                      {/* Speak / Stop Toggle Button with continuous status (Phase 6 Real State UI) */}
                       <button
                         onClick={toggleMicrophone}
                         disabled={!isSpeechSupported || isProcessing}
-                        className={`py-2 px-2 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition ${
+                        className={`py-2 px-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition ${
                           agentState === 'LISTENING'
-                            ? 'bg-purple-600/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/30'
+                            ? 'bg-[#34D399]/15 border-[#34D399]/40 text-emerald-900 ring-2 ring-[#34D399]/30'
                             : agentState === 'ERROR'
-                            ? 'bg-rose-600/20 border-rose-500 text-rose-300'
-                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750 disabled:opacity-50'
+                            ? 'bg-[#F87171]/15 border-[#F87171]/40 text-rose-900'
+                            : 'bg-white/80 border-[#5C1D3A]/15 text-[#0F0F12] hover:bg-white disabled:opacity-50'
                         }`}
                       >
                         {agentState === 'LISTENING' ? (
-                          <Mic className="h-4 w-4 text-purple-400 animate-pulse" />
+                          <Mic className="h-4 w-4 text-emerald-700 animate-pulse" />
                         ) : agentState === 'ERROR' ? (
-                          <AlertTriangle className="h-4 w-4 text-rose-400" />
+                          <AlertTriangle className="h-4 w-4 text-rose-600" />
                         ) : (
-                          <MicOff className="h-4 w-4" />
+                          <MicOff className="h-4 w-4 text-slate-500" />
                         )}
                         <span>
                           {agentState === 'LISTENING'
@@ -1170,18 +1182,18 @@ export default function VoiceAgentSimulator({
                       <button
                         onClick={handleSimulateBusy}
                         disabled={isProcessing}
-                        className="py-2 px-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-medium flex flex-col items-center justify-center space-y-1 transition"
+                        className="py-2 px-2 rounded-xl bg-[#FBBF24]/15 border border-[#FBBF24]/40 text-amber-900 hover:bg-[#FBBF24]/25 text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition"
                       >
-                        <Clock className="h-4 w-4 text-amber-400" />
+                        <Clock className="h-4 w-4 text-amber-600" />
                         <span>Line Busy</span>
                       </button>
 
                       <button
                         onClick={handleSimulateVoicemail}
                         disabled={isProcessing}
-                        className="py-2 px-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20 text-xs font-medium flex flex-col items-center justify-center space-y-1 transition"
+                        className="py-2 px-2 rounded-xl bg-blue-500/10 border border-blue-400/30 text-blue-900 hover:bg-blue-500/20 text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition"
                       >
-                        <MessageSquare className="h-4 w-4 text-blue-400" />
+                        <MessageSquare className="h-4 w-4 text-blue-700" />
                         <span>Voicemail</span>
                       </button>
                     </div>
@@ -1189,9 +1201,9 @@ export default function VoiceAgentSimulator({
                     <button
                       onClick={handleSimulateHandoff}
                       disabled={isProcessing}
-                      className="w-full py-2 px-3 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30 text-xs font-semibold flex items-center justify-center space-x-2 transition"
+                      className="w-full py-2.5 px-3 rounded-xl bg-[#E6F0FA] border border-[#5C1D3A]/20 text-[#0F0F12] hover:bg-white text-xs font-bold flex items-center justify-center space-x-2 transition shadow-xs"
                     >
-                      <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                      <Sparkles className="h-3.5 w-3.5 text-[#E5C158]" />
                       <span>Ask for Human SDR & Calendly SMS</span>
                     </button>
                   </div>
@@ -1199,40 +1211,40 @@ export default function VoiceAgentSimulator({
 
                 {/* Real-time SMS Notification Banner */}
                 {smsDetails && (
-                  <div className="w-full mt-4 bg-indigo-950/80 border border-indigo-500/40 rounded-2xl p-4 text-left space-y-2 animate-fade-in">
+                  <div className="w-full mt-4 bg-white/80 border border-[#5C1D3A]/20 rounded-2xl p-4 text-left space-y-2 shadow-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <span className="text-xs font-extrabold text-[#0F0F12] flex items-center gap-1.5">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-700" />
                         <span>Human Handoff Triggered</span>
                       </span>
-                      <span className="text-[10px] font-mono bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded-full border border-indigo-700">
+                      <span className="text-[10px] font-mono bg-[#E6F0FA] text-[#0F0F12] px-2 py-0.5 rounded-full border border-[#5C1D3A]/20 font-bold">
                         SMS: {smsDetails.provider?.toUpperCase()} ({smsDetails.status})
                       </span>
                     </div>
                     {smsDetails.sent ? (
                       <>
-                        <div className="text-xs text-slate-300 font-mono">
-                          Recipient: <span className="text-emerald-400">{smsDetails.recipient}</span>
+                        <div className="text-xs text-slate-700 font-mono">
+                          Recipient: <span className="text-emerald-800 font-bold">{smsDetails.recipient}</span>
                         </div>
-                        <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded-xl border border-slate-800 font-mono break-all">
+                        <div className="text-[11px] text-slate-800 bg-[#E6F0FA]/70 p-2.5 rounded-xl border border-[#5C1D3A]/15 font-mono break-all leading-relaxed">
                           {smsDetails.message}
                         </div>
                         {!bookingSimulated ? (
                           <button
                             onClick={handleSimulateCalendlyBooking}
-                            className="w-full mt-2 py-1.5 px-3 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 text-xs font-semibold transition flex items-center justify-center space-x-1"
+                            className="w-full mt-2 btn-success-mint py-2 px-3 text-xs font-bold transition flex items-center justify-center space-x-1"
                           >
                             <span>Simulate Lead Booking on Calendly</span>
                           </button>
                         ) : (
-                          <div className="text-xs text-emerald-400 font-bold bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/30 flex items-center justify-center space-x-1">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          <div className="text-xs text-emerald-900 font-extrabold bg-[#34D399]/20 p-2 rounded-xl border border-[#34D399]/40 flex items-center justify-center space-x-1">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
                             <span>Lead Status Updated: BOOKED</span>
                           </div>
                         )}
                       </>
                     ) : (
-                      <div className="text-xs text-rose-400 font-medium">
+                      <div className="text-xs text-rose-800 font-semibold">
                         Unable to send booking link: {smsDetails.error || 'SMS send failed.'}
                       </div>
                     )}
@@ -1244,32 +1256,32 @@ export default function VoiceAgentSimulator({
 
           {/* Right Column: Live Transcript Stream & Dual Input */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col h-[520px]">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+            <div className="glass-card-solid rounded-3xl p-6 shadow-sm flex flex-col h-[520px]">
+              <div className="flex items-center justify-between pb-4 border-b border-[#5C1D3A]/15 mb-4">
                 <div className="flex items-center space-x-2">
-                  <MessageSquare className="h-4 w-4 text-blue-400" />
-                  <span className="font-semibold text-white text-sm">Live Audio Transcript Stream</span>
+                  <MessageSquare className="h-4 w-4 text-[#0F0F12]" />
+                  <span className="font-extrabold text-[#0F0F12] text-sm">Live Audio Transcript Stream</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   {isListening && (
-                    <span className="text-xs font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                      <Mic className="h-3 w-3" />
+                    <span className="text-xs font-mono bg-[#34D399]/15 text-emerald-900 border border-[#34D399]/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse font-bold">
+                      <Mic className="h-3 w-3 text-emerald-700" />
                       <span>Live Mic</span>
                     </span>
                   )}
-                  <span className="text-xs font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-mono bg-white/70 text-slate-700 px-2.5 py-0.5 rounded-full border border-[#5C1D3A]/15 font-bold">
                     {conversation.length} turn(s)
                   </span>
                 </div>
               </div>
 
               {/* Scrollable Conversation History */}
-              <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2 bg-white/40 p-3 rounded-2xl border border-[#5C1D3A]/10">
                 {conversation.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 p-8 space-y-2">
-                    <PhoneCall className="h-8 w-8 text-slate-600 mb-2" />
-                    <p className="text-sm font-medium">No active transcript.</p>
-                    <p className="text-xs text-slate-600">
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 p-8 space-y-2">
+                    <PhoneCall className="h-8 w-8 text-[#0F0F12]/30 mb-2" />
+                    <p className="text-sm font-bold text-[#0F0F12]">No active transcript.</p>
+                    <p className="text-xs text-slate-500 max-w-sm">
                       Type a message below or click "Start Voice Call Simulation" to establish call connection with {company?.name || 'LeadPoint AI'}.
                     </p>
                   </div>
@@ -1282,18 +1294,18 @@ export default function VoiceAgentSimulator({
                       <div className="flex items-center space-x-2 mb-1">
                         <span className="text-[10px] font-mono text-slate-400">{msg.timestamp}</span>
                         <span
-                          className={`text-xs font-semibold ${
-                            msg.speaker === 'agent' ? 'text-blue-400' : 'text-purple-300'
+                          className={`text-xs font-bold ${
+                            msg.speaker === 'agent' ? 'text-[#0F0F12]' : 'text-slate-700'
                           }`}
                         >
                           {msg.speaker === 'agent' ? `AI Voice Agent (${company?.name || 'Alex'})` : lead.name}
                         </span>
                       </div>
                       <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${
+                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-xs ${
                           msg.speaker === 'agent'
-                            ? 'bg-blue-600/10 border border-blue-500/20 text-slate-100 rounded-tl-xs'
-                            : 'bg-purple-600/20 border border-purple-500/30 text-purple-50 rounded-tr-xs'
+                            ? 'bg-white border border-[#5C1D3A]/15 text-[#0F0F12] rounded-tl-xs'
+                            : 'bg-[#0F0F12] text-white rounded-tr-xs'
                         }`}
                       >
                         {msg.text}
@@ -1304,24 +1316,24 @@ export default function VoiceAgentSimulator({
 
                 {/* Interim Live Speech Bubble */}
                 {isListening && interimTranscript && (
-                  <div className="flex flex-col items-end opacity-80">
-                    <span className="text-[10px] font-mono text-purple-400 mb-1">Hearing...</span>
-                    <div className="max-w-[85%] rounded-2xl px-4 py-2.5 text-xs bg-purple-900/30 border border-purple-500/40 text-purple-200 italic">
+                  <div className="flex flex-col items-end opacity-85">
+                    <span className="text-[10px] font-mono text-emerald-800 font-bold mb-1">Hearing...</span>
+                    <div className="max-w-[85%] rounded-2xl px-4 py-2.5 text-xs bg-[#34D399]/15 border border-[#34D399]/40 text-emerald-900 italic font-medium">
                       "{interimTranscript}"
                     </div>
                   </div>
                 )}
 
                 {isProcessing && (
-                  <div className="flex items-center space-x-2 text-slate-400 text-xs py-2">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-blue-400" />
+                  <div className="flex items-center space-x-2 text-slate-600 text-xs py-2 font-medium">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-[#0F0F12]" />
                     <span>Gemini Voice Engine generating turn response...</span>
                   </div>
                 )}
               </div>
 
-              {/* Input Box for Speech / Text Dual Mode (Phase 2 Independent Text Chat) */}
-              <div className="pt-4 border-t border-slate-800 mt-2">
+              {/* Input Box for Speech / Text Dual Mode */}
+              <div className="pt-4 border-t border-[#5C1D3A]/15 mt-2">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1343,12 +1355,12 @@ export default function VoiceAgentSimulator({
                         ? 'Microphone listening (speak or type response)...'
                         : 'Type prospect response or click microphone to speak...'
                     }
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                    className="flex-1 bg-white/90 border border-[#5C1D3A]/20 rounded-xl px-4 py-2.5 text-sm text-[#0F0F12] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F0F12] disabled:opacity-50"
                   />
                   <button
                     type="submit"
                     disabled={!currentUtterance.trim() || isProcessing}
-                    className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 transition"
+                    className="p-2.5 rounded-xl bg-[#0F0F12] text-[#F6E27A] border border-[#E5C158]/30 disabled:opacity-40 transition shadow-xs"
                   >
                     <Send className="h-4 w-4" />
                   </button>
@@ -1361,49 +1373,49 @@ export default function VoiceAgentSimulator({
 
       {/* Webhook Post-Call Intelligence Card */}
       {webhookResult && (
-        <div className="bg-slate-900 border border-emerald-500/30 rounded-3xl p-6 shadow-2xl space-y-4 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="glass-card-solid rounded-3xl p-6 shadow-sm space-y-4 border border-[#34D399]/40">
+          <div className="flex items-center justify-between border-b border-[#5C1D3A]/15 pb-4">
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <div className="p-2 rounded-xl bg-[#34D399]/15 border border-[#34D399]/40 text-emerald-800">
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                <h3 className="font-extrabold text-[#0F0F12] text-lg flex items-center gap-2">
                   <span>Structured Call Webhook Processed</span>
                   {webhookResult.isHighIntentFlagged && (
-                    <span className="text-xs bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                      <Flame className="h-3 w-3 text-amber-400" />
+                    <span className="text-xs bg-[#FBBF24]/20 text-amber-900 font-extrabold border border-[#FBBF24]/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <Flame className="h-3 w-3 text-amber-600" />
                       <span>🔥 HIGH INTENT / INTERESTED</span>
                     </span>
                   )}
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-600">
                   API `/api/voice/call-webhook` written to database for Lead:{' '}
-                  <strong className="text-white">{webhookResult.leadName}</strong> ({webhookResult.companyName})
+                  <strong className="text-[#0F0F12]">{webhookResult.leadName}</strong> ({webhookResult.companyName})
                 </p>
               </div>
             </div>
-            <span className="text-xs font-mono bg-slate-800 text-slate-300 px-3 py-1 rounded-full border border-slate-700">
+            <span className="text-xs font-mono bg-white/70 text-slate-700 px-3 py-1 rounded-full border border-[#5C1D3A]/15 font-bold">
               Call ID: {webhookResult.callId}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-mono block mb-1">Sentiment & Disposition</span>
-              <div className="font-bold text-white text-base">{webhookResult.sentiment}</div>
-              <div className="text-xs text-blue-400 font-mono mt-1">Disposition: {webhookResult.disposition}</div>
+            <div className="bg-white/70 p-4 rounded-2xl border border-[#5C1D3A]/15">
+              <span className="text-xs text-slate-500 font-mono block mb-1 font-bold">Sentiment & Disposition</span>
+              <div className="font-extrabold text-[#0F0F12] text-base">{webhookResult.sentiment}</div>
+              <div className="text-xs text-[#0F0F12] font-mono mt-1 font-bold">Disposition: {webhookResult.disposition}</div>
             </div>
 
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 md:col-span-2">
-              <span className="text-xs text-slate-400 font-mono block mb-1">Next Best Action</span>
-              <div className="font-semibold text-emerald-300 text-sm">{webhookResult.nextBestAction}</div>
+            <div className="bg-white/70 p-4 rounded-2xl border border-[#5C1D3A]/15 md:col-span-2">
+              <span className="text-xs text-slate-500 font-mono block mb-1 font-bold">Next Best Action</span>
+              <div className="font-bold text-emerald-900 text-sm">{webhookResult.nextBestAction}</div>
             </div>
           </div>
 
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-            <span className="text-xs text-slate-400 font-mono block mb-2">Bulleted Executive Summary</span>
-            <div className="text-sm text-slate-300 whitespace-pre-line leading-relaxed font-sans">
+          <div className="bg-white/70 p-4 rounded-2xl border border-[#5C1D3A]/15">
+            <span className="text-xs text-slate-500 font-mono block mb-2 font-bold">Bulleted Executive Summary</span>
+            <div className="text-sm text-slate-800 whitespace-pre-line leading-relaxed font-sans">
               {webhookResult.summaryBulletPoints.join('\n')}
             </div>
           </div>

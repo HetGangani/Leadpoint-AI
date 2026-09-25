@@ -44,10 +44,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (session.role !== 'ADMIN' && !profileId) {
+      return NextResponse.json(
+        { success: false, error: 'No company profile found for account.' },
+        { status: 400 }
+      );
+    }
+
     let lead = await prisma.lead.findFirst({
       where: {
         id: body.leadId,
-        ...(session.role !== 'ADMIN' && profileId ? { companyProfileId: profileId } : {}),
+        ...(session.role !== 'ADMIN' ? { companyProfileId: profileId! } : {}),
       },
     });
 

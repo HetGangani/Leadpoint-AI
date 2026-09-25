@@ -15,8 +15,17 @@ import {
   LogIn,
   LogOut,
   User,
+  Building2,
 } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
+
+interface CurrentUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  companyName?: string;
+}
 
 export default function Navbar() {
   const locale = useLocale();
@@ -24,7 +33,7 @@ export default function Navbar() {
   const t = useTranslations('Nav');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
@@ -34,8 +43,15 @@ export default function Navbar() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.data?.user) {
-            setUser(data.data.user);
+            setUser({
+              ...data.data.user,
+              companyName: data.data.companyProfile?.name,
+            });
+          } else {
+            setUser(null);
           }
+        } else {
+          setUser(null);
         }
       } catch {
         setUser(null);
@@ -56,33 +72,56 @@ export default function Navbar() {
     }
   };
 
-  const navLinks = [
+  interface NavItem {
+    href: string;
+    label: string;
+    icon: any;
+    requiresAuth: boolean;
+    badge?: string;
+    adminOnly?: boolean;
+  }
+
+  // Base links visible to all authenticated users
+  const baseNavLinks: NavItem[] = [
     {
       href: `/${locale}`,
       label: t('home'),
       icon: Zap,
+      requiresAuth: false,
     },
     {
       href: `/${locale}/analytics`,
       label: t('analytics'),
       icon: BarChart3,
+      requiresAuth: true,
     },
     {
       href: `/${locale}/leads`,
       label: t('leads'),
       icon: Target,
+      requiresAuth: true,
     },
     {
       href: `/${locale}/voice`,
       label: t('voice'),
       icon: PhoneCall,
+      requiresAuth: true,
     },
-    {
-      href: `/${locale}/admin`,
-      label: t('admin'),
-      icon: ShieldCheck,
-      badge: 'Superadmin',
-    },
+  ];
+
+  // Admin-only link (strictly visible to ADMIN role)
+  const adminNavLink: NavItem = {
+    href: `/${locale}/admin`,
+    label: t('admin'),
+    icon: ShieldCheck,
+    badge: 'Superadmin',
+    requiresAuth: true,
+    adminOnly: true,
+  };
+
+  const navLinks: NavItem[] = [
+    ...baseNavLinks,
+    ...(user?.role === 'ADMIN' ? [adminNavLink] : []),
   ];
 
   const isActive = (href: string) => {
@@ -93,26 +132,26 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 shadow-lg">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Brand Logo */}
           <div className="flex items-center space-x-3">
             <Link href={`/${locale}`} className="flex items-center space-x-2.5 group">
-              <div className="bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 p-2 rounded-xl shadow-lg shadow-blue-500/20 group-hover:scale-105 transition">
-                <Zap className="h-5 w-5 text-white" />
+              <div className="bg-indigo-600 text-white p-2 rounded-lg shadow-sm group-hover:bg-indigo-700 transition">
+                <Zap className="h-5 w-5" />
               </div>
-              <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-blue-400 via-indigo-200 to-purple-400 bg-clip-text text-transparent">
-                LeadPoint AI
+              <span className="font-bold text-lg tracking-tight text-slate-900">
+                LeadPoint <span className="text-indigo-600">AI</span>
               </span>
             </Link>
-            <span className="hidden sm:inline-flex text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full font-semibold">
-              ENTERPRISE
+            <span className="hidden sm:inline-flex text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md">
+              B2B Sales Intelligence
             </span>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-1 lg:space-x-2">
+          <nav className="hidden md:flex items-center space-x-1 lg:space-x-1.5" aria-label="Main Navigation">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const active = isActive(link.href);
@@ -120,16 +159,16 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-sm font-medium transition ${
+                  className={`inline-flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
                     active
-                      ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-900 border border-transparent'
+                      ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${active ? 'text-blue-400' : 'text-slate-400'}`} />
+                  <Icon className={`h-4 w-4 ${active ? 'text-indigo-600' : 'text-slate-500'}`} />
                   <span>{link.label}</span>
                   {link.badge && (
-                    <span className="text-[10px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded-md">
+                    <span className="text-[10px] font-semibold uppercase bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
                       {link.badge}
                     </span>
                   )}
@@ -145,37 +184,55 @@ export default function Navbar() {
             {authChecked && (
               <>
                 {user ? (
-                  <div className="hidden sm:flex items-center space-x-3 pl-2 border-l border-slate-800">
-                    <div className="flex items-center space-x-2 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300">
-                      <User className="h-3.5 w-3.5 text-blue-400" />
-                      <span className="font-semibold text-white max-w-[120px] truncate">{user.name}</span>
-                      <span className="text-[10px] font-mono px-1 rounded bg-slate-800 text-slate-400 uppercase">
+                  <div className="hidden sm:flex items-center space-x-3 pl-3 border-l border-slate-200">
+                    <div className="flex items-center space-x-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                      {user.companyName ? (
+                        <Building2 className="h-3.5 w-3.5 text-indigo-600" />
+                      ) : (
+                        <User className="h-3.5 w-3.5 text-indigo-600" />
+                      )}
+                      <div className="flex flex-col text-left">
+                        <span className="font-semibold text-slate-800 max-w-[130px] truncate leading-tight">
+                          {user.name}
+                        </span>
+                        {user.companyName && (
+                          <span className="text-[10px] text-slate-500 truncate max-w-[130px] leading-tight">
+                            {user.companyName}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase ${
+                        user.role === 'ADMIN'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                      }`}>
                         {user.role}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-semibold transition"
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-semibold transition"
+                      aria-label="Sign Out"
                     >
-                      <LogOut className="h-3.5 w-3.5" />
+                      <LogOut className="h-3.5 w-3.5 text-slate-500" />
                       <span>Sign Out</span>
                     </button>
                   </div>
                 ) : (
-                  <div className="hidden sm:flex items-center space-x-2 pl-2 border-l border-slate-800">
+                  <div className="hidden sm:flex items-center space-x-2 pl-3 border-l border-slate-200">
                     <Link
                       href={`/${locale}/login`}
-                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition"
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
                     >
-                      <LogIn className="h-3.5 w-3.5 text-blue-400" />
+                      <LogIn className="h-3.5 w-3.5 text-indigo-600" />
                       <span>Sign In</span>
                     </Link>
                     <Link
                       href={`/${locale}/register`}
-                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md transition"
+                      className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition"
                     >
-                      <span>Register</span>
+                      <span>Get Started</span>
                     </Link>
                   </div>
                 )}
@@ -186,7 +243,8 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+              className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition"
+              aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -196,7 +254,7 @@ export default function Navbar() {
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-slate-950 border-b border-slate-800 px-4 pt-2 pb-4 space-y-2 animate-in slide-in-from-top-2 duration-150">
+        <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-2 pb-4 space-y-1.5 shadow-md">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const active = isActive(link.href);
@@ -205,10 +263,10 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition ${
                   active
-                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                    : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center space-x-3">
@@ -216,7 +274,7 @@ export default function Navbar() {
                   <span>{link.label}</span>
                 </div>
                 {link.badge && (
-                  <span className="text-[10px] font-mono uppercase bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-semibold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
                     {link.badge}
                   </span>
                 )}
@@ -224,30 +282,44 @@ export default function Navbar() {
             );
           })}
 
-          <div className="pt-2 border-t border-slate-800/80">
+          <div className="pt-3 border-t border-slate-200 mt-2">
             {user ? (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Sign Out ({user.name})</span>
-              </button>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg text-xs">
+                  <div>
+                    <div className="font-semibold text-slate-800">{user.name}</div>
+                    <div className="text-slate-500">{user.email}</div>
+                  </div>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
+                    {user.role}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-sm font-medium hover:bg-rose-100 transition"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 <Link
                   href={`/${locale}/login`}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-center space-x-1.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-sm font-medium"
+                  className="flex items-center justify-center space-x-1.5 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition"
                 >
-                  <LogIn className="h-4 w-4 text-blue-400" />
+                  <LogIn className="h-4 w-4 text-indigo-600" />
                   <span>Sign In</span>
                 </Link>
                 <Link
                   href={`/${locale}/register`}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-center space-x-1.5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium"
+                  className="flex items-center justify-center space-x-1.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium shadow-sm transition"
                 >
                   <span>Register</span>
                 </Link>

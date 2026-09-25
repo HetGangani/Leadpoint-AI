@@ -127,3 +127,88 @@ export function sanitizeUser(user: any) {
   const { passwordHash, encryptedApiKey, ...sanitized } = user;
   return sanitized;
 }
+
+/**
+ * Custom error class for authentication and authorization failures
+ */
+export class AuthError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 401) {
+    super(message);
+    this.name = 'AuthError';
+    this.statusCode = statusCode;
+  }
+}
+
+/**
+ * Resolves current user from request or server cookies
+ */
+export async function getCurrentUser(req?: Request): Promise<AuthSessionUser | null> {
+  if (req) {
+    return getSessionUser(req);
+  }
+
+  try {
+    const { cookies } = await import('next/headers');
+    const cookieStore = cookies();
+    const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+    if (!token) return null;
+    return verifySessionToken(token);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Requires authenticated session. Throws AuthError(401) if unauthenticated.
+ */
+export async function requireAuth(req?: Request): Promise<AuthSessionUser> {
+  const user = await getCurrentUser(req);
+  if (!user) {
+    throw new AuthError('Unauthorized', 401);
+  }
+  return user;
+}
+
+/**
+ * Requires authenticated session with specified role(s). Throws AuthError(401 or 403).
+ */
+export async function requireRole(
+  requiredRole: UserRole | UserRole[],
+  req?: Request
+): Promise<AuthSessionUser> {
+  const user = await requireAuth(req);
+  if (!hasRole(user.role, requiredRole)) {
+    throw new AuthError('Forbidden: Insufficient privileges', 403);
+  }
+  return user;
+}
+
+/**
+ * Requires authenticated user to have ADMIN role. Throws AuthError(401 or 403).
+ */
+export async function requireAdmin(req?: Request): Promise<AuthSessionUser> {
+  return requireRole(UserRole.ADMIN, req);
+}
+
+/**
+ * Safely resolves tenant company profile ID for the current session.
+ */
+export async function resolveTenantProfileId(session: AuthSessionUser): Promise<string | null> {
+  if (session.companyProfileId) {
+    return session.companyProfileId;
+  }
+
+  try {
+    const { prisma } = await import('./prisma');
+    const profile = await prisma.companyProfile.findUnique({
+      where: { userId: session.id },
+      select: { id: true },
+    });
+    return profile?.id || null;
+  } catch {
+    return null;
+  }
+}
+
