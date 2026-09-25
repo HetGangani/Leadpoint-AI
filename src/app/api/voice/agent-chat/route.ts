@@ -36,30 +36,26 @@ export async function POST(req: NextRequest) {
       ? await prisma.companyProfile.findUnique({ where: { id: profileId } })
       : await prisma.companyProfile.findFirst();
 
-    // Find authoritative target lead (scoped strictly to tenant)
-    let lead = null;
-    if (body.leadId) {
-      lead = await prisma.lead.findFirst({
-        where: {
-          id: body.leadId,
-          ...(session.role !== 'ADMIN' && profileId ? { companyProfileId: profileId } : {}),
-        },
-      });
-
-      if (!lead && !body.leadId.startsWith('lead_sim_')) {
-        return NextResponse.json(
-          { success: false, error: 'Lead not found or unauthorized for this account.' },
-          { status: 404 }
-        );
-      }
+    // Authoritative target lead verification (scoped strictly to tenant)
+    if (!body.leadId) {
+      return NextResponse.json(
+        { success: false, error: 'A valid leadId is required to start or continue a voice turn.' },
+        { status: 400 }
+      );
     }
 
-    // If still no lead, check if tenant has any leads or if in simulation mode
-    if (!lead && profileId) {
-      lead = await prisma.lead.findFirst({
-        where: { companyProfileId: profileId },
-        orderBy: { createdAt: 'desc' },
-      });
+    let lead = await prisma.lead.findFirst({
+      where: {
+        id: body.leadId,
+        ...(session.role !== 'ADMIN' && profileId ? { companyProfileId: profileId } : {}),
+      },
+    });
+
+    if (!lead) {
+      return NextResponse.json(
+        { success: false, error: `Lead with ID "${body.leadId}" not found or unauthorized for this account.` },
+        { status: 404 }
+      );
     }
 
     // Temporary server-side logging as requested
@@ -72,12 +68,12 @@ export async function POST(req: NextRequest) {
     );
 
     // Process turn with Gemini Voice AI Engine
-    const targetLeadName = lead?.name || body.leadName || 'Prospect';
-    const targetCompanyName = lead?.companyName || body.companyName || 'Target Enterprise';
+    const targetLeadName = lead.name;
+    const targetCompanyName = lead.companyName;
 
     const turnResponse: AgentTurnResponse = await processVoiceAgentTurn({
       ...body,
-      leadId: lead?.id,
+      leadId: lead.id,
       leadName: targetLeadName,
       companyName: targetCompanyName,
       clientBusinessProfile: companyProfile

@@ -13,6 +13,7 @@ function VoiceContent() {
   const [availableLeads, setAvailableLeads] = useState<any[]>([]);
   const [companyProfile, setCompanyProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [leadError, setLeadError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -35,15 +36,21 @@ function VoiceContent() {
             const found = leadsRes.data.find((l: any) => l.id === leadId);
             if (found) {
               setInitialLead(found);
-            } else if (leadsRes.data.length > 0) {
-              setInitialLead(leadsRes.data[0]);
+              setLeadError(null);
+            } else {
+              setInitialLead(null);
+              setLeadError(`Lead with ID "${leadId}" was not found or is not authorized for this account.`);
             }
           } else if (leadsRes.data.length > 0) {
             setInitialLead(leadsRes.data[0]);
+            setLeadError(null);
           }
+        } else if (!leadsRes.success) {
+          setLeadError(leadsRes.error || 'Failed to load leads from database.');
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('Failed to load voice page data:', e);
+        if (mounted) setLeadError(e.message || 'Failed to load voice workspace.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -66,11 +73,21 @@ function VoiceContent() {
   }
 
   return (
-    <VoiceAgentSimulator
-      initialLead={initialLead}
-      availableLeads={availableLeads}
-      companyProfile={companyProfile}
-    />
+    <div className="space-y-4">
+      {leadError && (
+        <div className="max-w-6xl mx-auto bg-rose-500/10 border border-rose-500/30 text-rose-300 px-5 py-4 rounded-2xl flex items-center justify-between text-xs">
+          <span>{leadError}</span>
+          <a href="/en/voice" className="underline font-semibold hover:text-white">
+            Reset to default lead
+          </a>
+        </div>
+      )}
+      <VoiceAgentSimulator
+        initialLead={initialLead}
+        availableLeads={availableLeads}
+        companyProfile={companyProfile}
+      />
+    </div>
   );
 }
 

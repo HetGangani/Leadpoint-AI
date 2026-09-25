@@ -28,6 +28,8 @@ interface VoiceAgentSimulatorProps {
   onSelectLead?: (lead: LeadItem) => void;
 }
 
+export type VoiceAgentState = 'IDLE' | 'LISTENING' | 'PROCESSING' | 'SPEAKING' | 'ERROR';
+
 export default function VoiceAgentSimulator({
   initialLead,
   availableLeads: propLeads,
@@ -41,29 +43,74 @@ export default function VoiceAgentSimulator({
 
   const [locale, setLocale] = useState<SupportedLocale>('en');
   const [isCallActive, setIsCallActive] = useState(false);
+  const [agentState, setAgentState] = useState<VoiceAgentState>('IDLE');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [currentUtterance, setCurrentUtterance] = useState('');
   const [callDuration, setCallDuration] = useState(0);
-  const [conversation, setConversation] = useState<Array<{ speaker: 'agent' | 'prospect'; text: string; timestamp: string; sentiment?: string }>>([]);
+  const [conversation, setConversation] = useState<
+    Array<{ speaker: 'agent' | 'prospect'; role?: 'assistant' | 'user'; content?: string; text: string; timestamp: string; sentiment?: string }>
+  >([]);
   const [isHighIntent, setIsHighIntent] = useState(false);
   const [currentStage, setCurrentStage] = useState<string>('IDLE');
   const [isProcessing, setIsProcessing] = useState(false);
   const [webhookResult, setWebhookResult] = useState<CallWebhookResult | null>(null);
   const [smsDetails, setSmsDetails] = useState<any>(null);
   const [bookingSimulated, setBookingSimulated] = useState(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(true);
+  const [micError, setMicError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Refs for managing timers, speech recognition, and state across callbacks
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef<boolean>(false);
-  const conversationRef = useRef<Array<{ speaker: 'agent' | 'prospect'; text: string; timestamp: string; sentiment?: string }>>([]);
+  const shouldListenRef = useRef<boolean>(false);
+  const isProcessingRef = useRef<boolean>(false);
+  const isSpeakingRef = useRef<boolean>(false);
+  const conversationRef = useRef<
+    Array<{ speaker: 'agent' | 'prospect'; role?: 'assistant' | 'user'; content?: string; text: string; timestamp: string; sentiment?: string }>
+  >([]);
+  const callDurationRef = useRef<number>(0);
+  const leadRef = useRef<LeadItem | null>(initialLead || null);
+  const companyRef = useRef<any>(propCompany || null);
+  const localeRef = useRef<SupportedLocale>('en');
+  const currentUtteranceRef = useRef<string>('');
+  const lastFinalTranscriptRef = useRef<string>('');
+  const sendUserMessageRef = useRef<((textToSend?: string) => Promise<void>) | null>(null);
 
-  // Sync conversation ref
+  // Sync refs to avoid stale closures
   useEffect(() => {
     conversationRef.current = conversation;
   }, [conversation]);
+
+  useEffect(() => {
+    callDurationRef.current = callDuration;
+  }, [callDuration]);
+
+  useEffect(() => {
+    leadRef.current = lead;
+  }, [lead]);
+
+  useEffect(() => {
+    companyRef.current = company;
+  }, [company]);
+
+  useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
+
+  useEffect(() => {
+    currentUtteranceRef.current = currentUtterance;
+  }, [currentUtterance]);
+
+  useEffect(() => {
+    if (initialLead) {
+      setLead(initialLead);
+      leadRef.current = initialLead;
+    }
+  }, [initialLead]);
 
   // Fetch authenticated user's company and leads if not supplied via props
   useEffect(() => {
@@ -71,26 +118,31 @@ export default function VoiceAgentSimulator({
     async function loadTenantData() {
       try {
         const [leadsRes, meRes] = await Promise.all([
-          fetch('/api/leads').then(r => r.json()).catch(() => ({ success: false })),
-          fetch('/api/auth/me').then(r => r.json()).catch(() => ({ success: false }))
+          fetch('/api/leads').then((r) => r.json()).catch(() => ({ success: false })),
+          fetch('/api/auth/me').then((r) => r.json()).catch(() => ({ success: false })),
         ]);
 
         if (!mounted) return;
 
         if (meRes.success && meRes.data?.companyProfile) {
           setCompany(meRes.data.companyProfile);
+          companyRef.current = meRes.data.companyProfile;
         }
 
         if (leadsRes.success && Array.isArray(leadsRes.data)) {
           setLeadsList(leadsRes.data);
 
-          // If no initial lead provided, select the first lead or find the matching lead
-          if (!lead) {
+          // If no initial lead provided, select the matching lead or first lead
+          if (!leadRef.current) {
             if (initialLead) {
               const matched = leadsRes.data.find((l: LeadItem) => l.id === initialLead.id);
-              setLead(matched || initialLead);
+              if (matched) {
+                setLead(matched);
+                leadRef.current = matched;
+              }
             } else if (leadsRes.data.length > 0) {
               setLead(leadsRes.data[0]);
+              leadRef.current = leadsRes.data[0];
             }
           }
         }
@@ -128,121 +180,256 @@ export default function VoiceAgentSimulator({
   }, [isCallActive]);
 
   // Format call duration MM:SS
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
-  // Text to Speech playback (Web Speech API)
+  // Text to Speech playback (Web Speech API) - PART 5
   const speakAgentResponse = useCallback((text: string) => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        window.speechSynthesis.cancel();
 
-      const langMap: Record<SupportedLocale, string> = {
-        en: 'en-US',
-        es: 'es-ES',
-        de: 'de-DE',
-        hi: 'hi-IN',
-        fr: 'fr-FR',
-      };
-      utterance.lang = langMap[locale] || 'en-US';
-      utterance.rate = 1.0;
+        // PART 5: Prevent AI Voice Feedback - SpeechRecognition MUST NOT be listening while AI speaks
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop();
+          } catch (e) {}
+        }
+        isListeningRef.current = false;
+        setIsListening(false);
 
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+        const utterance = new SpeechSynthesisUtterance(text);
+        const langMap: Record<SupportedLocale, string> = {
+          en: 'en-US',
+          es: 'es-ES',
+          de: 'de-DE',
+          hi: 'hi-IN',
+          fr: 'fr-FR',
+        };
+        utterance.lang = langMap[localeRef.current] || 'en-US';
+        utterance.rate = 1.0;
 
-      window.speechSynthesis.speak(utterance);
-    }
-  }, [locale]);
+        utterance.onstart = () => {
+          console.log('[VOICE DEBUG] event=tts-start');
+          isSpeakingRef.current = true;
+          setIsSpeaking(true);
+          setAgentState('SPEAKING');
+        };
 
-  // Send turn in call (reads authoritative conversationRef to eliminate stale closure bugs)
-  const handleSendUserMessage = useCallback(async (textToSend?: string) => {
-    const text = (textToSend || currentUtterance).trim();
-    if (!text || !isCallActive || isProcessing) return;
+        const handleSpeechEnd = () => {
+          console.log('[VOICE DEBUG] event=tts-end');
+          isSpeakingRef.current = false;
+          setIsSpeaking(false);
 
-    const now = formatTime(callDuration);
-    const updatedConversation = [
-      ...conversationRef.current,
-      { speaker: 'prospect' as const, text, timestamp: now },
-    ];
-    conversationRef.current = updatedConversation;
-    setConversation(updatedConversation);
-    setCurrentUtterance('');
-    setInterimTranscript('');
-    setIsProcessing(true);
-
-    try {
-      const res = await fetch('/api/voice/agent-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: lead?.id,
-          leadName: lead?.name,
-          companyName: lead?.companyName,
-          userUtterance: text,
-          locale,
-          conversationHistory: updatedConversation.map((c) => ({ sender: c.speaker, text: c.text })),
-          clientBusinessProfile: company
-            ? {
-                name: company.name,
-                description: company.description,
-                offerings: company.offerings,
+          // After speechSynthesis.onend, restart recognition if voice mode is still active
+          if (shouldListenRef.current) {
+            setAgentState('LISTENING');
+            console.log('[VOICE DEBUG] event=mic-restart');
+            setTimeout(() => {
+              if (shouldListenRef.current && !isSpeakingRef.current && !isProcessingRef.current && recognitionRef.current) {
+                try {
+                  recognitionRef.current.start();
+                } catch (err: any) {
+                  if (!err?.message?.includes('already started')) {
+                    console.warn('[VOICE DEBUG] Recognition restart after TTS warning:', err);
+                  }
+                }
               }
-            : undefined,
-        }),
-      });
+            }, 250);
+          } else {
+            setAgentState('IDLE');
+          }
+        };
 
-      const data = await res.json();
-      if (data.success) {
-        const reply = data.data.replyText;
-        const withAgentReply = [
-          ...conversationRef.current,
-          {
-            speaker: 'agent' as const,
-            text: reply,
-            timestamp: formatTime(callDuration + 1),
-            sentiment: data.data.sentiment,
-          },
-        ];
-        conversationRef.current = withAgentReply;
-        setConversation(withAgentReply);
-        setCurrentStage(data.data.stage);
+        utterance.onend = handleSpeechEnd;
+        utterance.onerror = (e) => {
+          console.warn('Speech synthesis error:', e);
+          handleSpeechEnd();
+        };
 
-        if (data.data.isHighIntent) {
-          setIsHighIntent(true);
-        }
-
-        if (data.data.smsDetails) {
-          setSmsDetails(data.data.smsDetails);
-        }
-
-        // If phone was collected and updated on lead in DB, update local lead state
-        if (data.data.extractedPhone && lead) {
-          setLead((prev) => (prev ? { ...prev, phone: data.data.extractedPhone } : null));
-        }
-
-        speakAgentResponse(reply);
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn('Speech synthesis playback exception:', err);
+        isSpeakingRef.current = false;
+        setIsSpeaking(false);
+        setAgentState(shouldListenRef.current ? 'LISTENING' : 'IDLE');
       }
-    } catch (e) {
-      console.error('Error in handleSendUserMessage:', e);
-    } finally {
-      setIsProcessing(false);
     }
-  }, [callDuration, company, currentUtterance, isCallActive, isProcessing, lead, locale, speakAgentResponse]);
+  }, []);
 
-  // Speech Recognition Setup with Controlled Auto-Restart
+  // Common sendUserMessage function called by both TEXT and VOICE inputs (PARTS 6 & 7)
+  const sendUserMessage = useCallback(
+    async (textToSend?: string) => {
+      const text = (textToSend || currentUtteranceRef.current).trim();
+      if (!text) return;
+      if (isProcessingRef.current) return;
+
+      const currentLead = leadRef.current;
+      if (!currentLead) {
+        alert('Please select an authoritative tenant lead first.');
+        return;
+      }
+
+      // Automatically activate call session on user message so text chat works independently
+      setIsCallActive(true);
+      setApiError(null);
+      setCurrentUtterance('');
+      setInterimTranscript('');
+
+      // Stop recognition while turn is being processed to prevent acoustic loop
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+      }
+      isListeningRef.current = false;
+      setIsListening(false);
+
+      isProcessingRef.current = true;
+      setIsProcessing(true);
+      setAgentState('PROCESSING');
+
+      const now = formatTime(callDurationRef.current);
+      // The current user message MUST be present as the final prospect message (PART 7)
+      const updatedConversation = [
+        ...conversationRef.current,
+        {
+          speaker: 'prospect' as const,
+          role: 'user' as const,
+          content: text,
+          text,
+          timestamp: now,
+        },
+      ];
+      conversationRef.current = updatedConversation;
+      setConversation(updatedConversation);
+
+      console.log(
+        `[VOICE DEBUG] event=api-request userUtterance="${text}" historyLength=${updatedConversation.length}`
+      );
+
+      try {
+        const res = await fetch('/api/voice/agent-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: currentLead.id,
+            leadName: currentLead.name,
+            companyName: currentLead.companyName,
+            userUtterance: text,
+            locale: localeRef.current,
+            conversationHistory: updatedConversation.map((c) => ({
+              sender: c.speaker === 'agent' ? 'agent' : 'prospect',
+              role: c.role || (c.speaker === 'agent' ? 'assistant' : 'user'),
+              text: c.text,
+              content: c.text,
+            })),
+            clientBusinessProfile: companyRef.current
+              ? {
+                  name: companyRef.current.name,
+                  description: companyRef.current.description,
+                  offerings: companyRef.current.offerings,
+                }
+              : undefined,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          const reply = data.data.replyText;
+          console.log(`[VOICE DEBUG] event=api-response reply="${reply}"`);
+
+          const withAgentReply = [
+            ...conversationRef.current,
+            {
+              speaker: 'agent' as const,
+              role: 'assistant' as const,
+              content: reply,
+              text: reply,
+              timestamp: formatTime(callDurationRef.current + 1),
+              sentiment: data.data.sentiment,
+            },
+          ];
+          conversationRef.current = withAgentReply;
+          setConversation(withAgentReply);
+          setCurrentStage(data.data.stage);
+
+          if (data.data.isHighIntent) {
+            setIsHighIntent(true);
+          }
+
+          if (data.data.smsDetails) {
+            setSmsDetails(data.data.smsDetails);
+          }
+
+          if (data.data.extractedPhone && currentLead) {
+            setLead((prev) => (prev ? { ...prev, phone: data.data.extractedPhone } : null));
+          }
+
+          speakAgentResponse(reply);
+        } else {
+          const errMsg = data.error || 'Failed to process voice agent turn';
+          setApiError(errMsg);
+          const withError = [
+            ...conversationRef.current,
+            {
+              speaker: 'agent' as const,
+              role: 'assistant' as const,
+              content: `[Error: ${errMsg}]`,
+              text: `[Error: ${errMsg}]`,
+              timestamp: formatTime(callDurationRef.current + 1),
+              sentiment: 'NEGATIVE',
+            },
+          ];
+          conversationRef.current = withError;
+          setConversation(withError);
+          setAgentState('ERROR');
+        }
+      } catch (e: any) {
+        console.error('Error in sendUserMessage:', e);
+        const errMsg = e.message || 'Network error processing turn';
+        setApiError(errMsg);
+        setAgentState('ERROR');
+      } finally {
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+        if (!isSpeakingRef.current) {
+          setAgentState(shouldListenRef.current ? 'LISTENING' : 'IDLE');
+        }
+      }
+    },
+    [formatTime, speakAgentResponse]
+  );
+
+  // Maintain ref to latest sendUserMessage so SpeechRecognition always calls the latest logic
+  useEffect(() => {
+    sendUserMessageRef.current = sendUserMessage;
+  }, [sendUserMessage]);
+
+  // Create ONE stable SpeechRecognition instance for the component/locale (PARTS 1, 2, 4)
+  // Dependencies MUST ONLY be [locale]
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
+    if (!SpeechRecognition) {
+      setIsSpeechSupported(false);
+      return;
+    }
+
+    setIsSpeechSupported(true);
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
 
     const langMap: Record<SupportedLocale, string> = {
       en: 'en-US',
@@ -253,87 +440,167 @@ export default function VoiceAgentSimulator({
     };
     recognition.lang = langMap[locale] || 'en-US';
 
+    // Only set isListening=true from recognition.onstart (PART 3)
     recognition.onstart = () => {
+      console.log('[VOICE DEBUG] event=mic-start');
+      isListeningRef.current = true;
       setIsListening(true);
+      if (!isProcessingRef.current && !isSpeakingRef.current) {
+        setAgentState('LISTENING');
+      }
+      setMicError(null);
     };
 
     recognition.onresult = (event: any) => {
+      // PART 5: Suppress microphone input if AI is speaking
+      if (isSpeakingRef.current) {
+        return;
+      }
+
       let interim = '';
+      let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const transcriptPart = event.results[i][0].transcript;
+        const transcriptPart = event.results[i][0]?.transcript || '';
         if (event.results[i].isFinal) {
-          if (transcriptPart.trim()) {
-            handleSendUserMessage(transcriptPart.trim());
-          }
+          finalTranscript += transcriptPart;
         } else {
           interim += transcriptPart;
         }
       }
-      setInterimTranscript(interim);
+
+      const trimmedFinal = finalTranscript.trim();
+      // PART 4: Only send FINAL speech results. Prevent duplicate final results.
+      if (trimmedFinal) {
+        if (trimmedFinal !== lastFinalTranscriptRef.current && !isProcessingRef.current) {
+          lastFinalTranscriptRef.current = trimmedFinal;
+          setInterimTranscript('');
+          console.log(`[VOICE DEBUG] event=mic-result transcript="${trimmedFinal}"`);
+
+          // 1. Stop/pause recognition
+          try {
+            recognition.stop();
+          } catch (e) {}
+
+          // 2. Set LISTENING=false
+          isListeningRef.current = false;
+          setIsListening(false);
+
+          // 3-8. Dispatch message
+          sendUserMessageRef.current?.(trimmedFinal);
+        }
+      } else {
+        setInterimTranscript(interim);
+      }
     };
 
+    // PART 2: Specific error handling without infinite auto-restart loops
     recognition.onerror = (event: any) => {
-      console.warn('Speech recognition error event:', event.error);
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        isListeningRef.current = false;
-        setIsListening(false);
-        alert('Microphone access was denied. Please allow microphone permissions to use voice input.');
+      console.log(
+        `[VOICE DEBUG] event=mic-error error="${event.error}" message="${event.message || ''}"`
+      );
+
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        return;
+      }
+
+      shouldListenRef.current = false;
+      isListeningRef.current = false;
+      setIsListening(false);
+      setAgentState('ERROR');
+
+      if (event.error === 'network' || event.error === 'service-not-allowed') {
+        setMicError('Speech recognition service is unavailable. Check Chrome/network settings and try again.');
+      } else if (event.error === 'not-allowed') {
+        setMicError('Microphone permission denied. Allow microphone access for this site.');
+      } else if (event.error === 'audio-capture') {
+        setMicError('No microphone/audio input is available.');
+      } else if (event.error === 'language-not-supported') {
+        setMicError('Speech recognition does not support the selected language.');
+      } else {
+        setMicError(`Speech recognition error: ${event.error}`);
       }
     };
 
     recognition.onend = () => {
-      // If listening was NOT intentionally stopped by the user, restart recognition
-      if (isListeningRef.current) {
+      isListeningRef.current = false;
+      if (shouldListenRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
         setTimeout(() => {
-          if (isListeningRef.current) {
+          if (shouldListenRef.current && !isSpeakingRef.current && !isProcessingRef.current && recognitionRef.current) {
             try {
-              recognition.start();
-            } catch (err) {
-              console.warn('Recognition auto-restart suppressed:', err);
+              recognitionRef.current.start();
+            } catch (err: any) {
+              if (!err?.message?.includes('already started')) {
+                console.warn('[VOICE DEBUG] Recognition auto-restart suppressed:', err);
+              }
             }
           }
-        }, 200);
+        }, 250);
       } else {
         setIsListening(false);
+        if (!isProcessingRef.current && !isSpeakingRef.current) {
+          setAgentState('IDLE');
+        }
       }
     };
 
     recognitionRef.current = recognition;
 
     return () => {
+      shouldListenRef.current = false;
       isListeningRef.current = false;
       try {
         recognition.stop();
       } catch (e) {}
     };
-  }, [locale, handleSendUserMessage]);
+  }, [locale]);
 
-  // Toggle Microphone
-  const toggleMicrophone = () => {
-    if (!recognitionRef.current) {
-      alert('Speech Recognition is not supported in this browser. You can type in the chat input below!');
+  // Toggle Microphone with getUserMedia permission check (PART 3)
+  const toggleMicrophone = async () => {
+    if (!isSpeechSupported || !recognitionRef.current) {
+      alert('Speech recognition is not supported in this browser. Please use Google Chrome.');
       return;
     }
 
-    if (isListeningRef.current) {
+    if (isListeningRef.current || shouldListenRef.current) {
       // User explicitly stopped listening
+      shouldListenRef.current = false;
       isListeningRef.current = false;
       setIsListening(false);
       setInterimTranscript('');
+      setAgentState('IDLE');
       try {
         recognitionRef.current.stop();
       } catch (err) {
         console.warn('Error stopping recognition:', err);
       }
     } else {
-      // User explicitly started listening
-      isListeningRef.current = true;
-      setIsListening(true);
+      // PART 3: Verify microphone access first with getUserMedia
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Release test tracks so SpeechRecognition has clean microphone access
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (err: any) {
+        console.log(`[VOICE DEBUG] event=mic-error error="not-allowed" message="${err?.message || ''}"`);
+        shouldListenRef.current = false;
+        isListeningRef.current = false;
+        setIsListening(false);
+        setAgentState('ERROR');
+        setMicError('Microphone permission denied. Allow microphone access for this site.');
+        return;
+      }
+
+      if (!isCallActive) {
+        setIsCallActive(true);
+      }
+      setMicError(null);
+      shouldListenRef.current = true;
+      // Do not fake UI as LISTENING before recognition actually starts!
+      // Only set isListening=true from recognition.onstart.
       try {
         recognitionRef.current.start();
       } catch (err: any) {
         if (!err?.message?.includes('already started')) {
-          console.warn('Error starting recognition:', err);
+          console.warn('[VOICE DEBUG] Error starting recognition:', err);
         }
       }
     }
@@ -341,7 +608,8 @@ export default function VoiceAgentSimulator({
 
   // Start Voice Call Session
   const handleStartCall = async () => {
-    if (!lead) {
+    const currentLead = leadRef.current;
+    if (!currentLead) {
       alert('Please select a lead before starting the call.');
       return;
     }
@@ -354,25 +622,28 @@ export default function VoiceAgentSimulator({
     setSmsDetails(null);
     setBookingSimulated(false);
     setWebhookResult(null);
+    setApiError(null);
     setCurrentStage('CONNECTING');
+    setAgentState('PROCESSING');
 
     // Generate initial greeting
+    isProcessingRef.current = true;
     setIsProcessing(true);
     try {
       const res = await fetch('/api/voice/agent-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadId: lead.id,
-          leadName: lead.name,
-          companyName: lead.companyName,
+          leadId: currentLead.id,
+          leadName: currentLead.name,
+          companyName: currentLead.companyName,
           userUtterance: 'Hello',
-          locale,
-          clientBusinessProfile: company
+          locale: localeRef.current,
+          clientBusinessProfile: companyRef.current
             ? {
-                name: company.name,
-                description: company.description,
-                offerings: company.offerings,
+                name: companyRef.current.name,
+                description: companyRef.current.description,
+                offerings: companyRef.current.offerings,
               }
             : undefined,
         }),
@@ -381,23 +652,40 @@ export default function VoiceAgentSimulator({
       if (data.success) {
         const greetingText = data.data.replyText;
         const now = formatTime(0);
-        const initConversation = [{ speaker: 'agent' as const, text: greetingText, timestamp: now }];
+        const initConversation = [
+          {
+            speaker: 'agent' as const,
+            role: 'assistant' as const,
+            content: greetingText,
+            text: greetingText,
+            timestamp: now,
+          },
+        ];
         conversationRef.current = initConversation;
         setConversation(initConversation);
         setCurrentStage(data.data.stage);
         speakAgentResponse(greetingText);
+      } else {
+        setApiError(data.error || 'Failed to start call');
+        setAgentState('ERROR');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error starting voice call:', e);
+      setApiError(e.message || 'Failed to start call');
+      setAgentState('ERROR');
     } finally {
+      isProcessingRef.current = false;
       setIsProcessing(false);
+      if (!isSpeakingRef.current) {
+        setAgentState(shouldListenRef.current ? 'LISTENING' : 'IDLE');
+      }
     }
   };
 
   // Simulate Human Handoff request
   const handleSimulateHandoff = async () => {
     if (!isCallActive || isProcessing) return;
-    handleSendUserMessage('I want to speak with a human SDR and get a Calendly link.');
+    sendUserMessage('I want to speak with a human SDR and get a Calendly link.');
   };
 
   // Simulate lead booking on Calendly via webhook
@@ -498,9 +786,12 @@ export default function VoiceAgentSimulator({
   // End Call & Trigger Call Webhook Analysis
   const handleEndCall = async (manualDisposition?: any) => {
     setIsCallActive(false);
+    shouldListenRef.current = false;
     isListeningRef.current = false;
     setIsListening(false);
+    isSpeakingRef.current = false;
     setIsSpeaking(false);
+    setAgentState('IDLE');
     setInterimTranscript('');
 
     if (recognitionRef.current) {
@@ -515,7 +806,9 @@ export default function VoiceAgentSimulator({
 
     if (!lead) return;
 
+    isProcessingRef.current = true;
     setIsProcessing(true);
+    setAgentState('PROCESSING');
     try {
       const res = await fetch('/api/voice/call-webhook', {
         method: 'POST',
@@ -538,7 +831,9 @@ export default function VoiceAgentSimulator({
     } catch (e) {
       console.error('Error ending call / webhook:', e);
     } finally {
+      isProcessingRef.current = false;
       setIsProcessing(false);
+      setAgentState('IDLE');
     }
   };
 
@@ -550,10 +845,13 @@ export default function VoiceAgentSimulator({
     const found = leadsList.find((l) => l.id === selectedId);
     if (found) {
       setLead(found);
+      leadRef.current = found;
       setConversation([]);
       conversationRef.current = [];
       setSmsDetails(null);
       setWebhookResult(null);
+      setApiError(null);
+      setMicError(null);
       if (onSelectLead) onSelectLead(found);
     }
   };
@@ -632,6 +930,51 @@ export default function VoiceAgentSimulator({
           </div>
         </div>
       </div>
+
+      {/* Browser Speech Support Warning Banner (Phase 5 requirement) */}
+      {!isSpeechSupported && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs px-5 py-3 rounded-2xl flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+          <span>Speech recognition is not supported in this browser. Please use Google Chrome.</span>
+        </div>
+      )}
+
+      {/* Mic Error Banner (PART 2) */}
+      {micError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs px-5 py-3 rounded-2xl flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+            <span>{micError}</span>
+          </span>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                setMicError(null);
+                toggleMicrophone();
+              }}
+              className="px-2.5 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-white font-semibold text-[11px] transition"
+            >
+              Retry Microphone
+            </button>
+            <button onClick={() => setMicError(null)} className="text-slate-400 hover:text-white font-mono text-[10px]">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* API Error Banner */}
+      {apiError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs px-5 py-3 rounded-2xl flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+            <span>API Error: {apiError}</span>
+          </span>
+          <button onClick={() => setApiError(null)} className="text-slate-400 hover:text-white font-mono text-[10px]">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* If No Lead Selected */}
       {!lead ? (
@@ -717,7 +1060,7 @@ export default function VoiceAgentSimulator({
                 </div>
               </div>
 
-              {/* Call State & Timer */}
+              {/* Call State & Timer (Phase 6 Real State Badges) */}
               <div className="mt-2 space-y-1">
                 <div className="font-mono text-2xl font-bold text-white tracking-widest">
                   {isCallActive ? formatTime(callDuration) : '00:00'}
@@ -725,16 +1068,30 @@ export default function VoiceAgentSimulator({
                 <div className="text-xs font-medium text-slate-400 flex items-center justify-center gap-1.5">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isCallActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'
+                      agentState === 'SPEAKING'
+                        ? 'bg-purple-400 animate-pulse'
+                        : agentState === 'LISTENING'
+                        ? 'bg-emerald-400 animate-pulse'
+                        : agentState === 'PROCESSING'
+                        ? 'bg-blue-400 animate-pulse'
+                        : agentState === 'ERROR'
+                        ? 'bg-rose-500'
+                        : isCallActive
+                        ? 'bg-emerald-500'
+                        : 'bg-slate-600'
                     }`}
                   />
                   <span>
-                    {isCallActive
-                      ? isSpeaking
-                        ? 'AI Speaking...'
-                        : isListening
-                        ? 'Microphone Listening...'
-                        : 'Call Active'
+                    {agentState === 'SPEAKING'
+                      ? 'AI Speaking...'
+                      : agentState === 'PROCESSING'
+                      ? 'Processing Turn...'
+                      : agentState === 'LISTENING'
+                      ? 'Microphone Listening...'
+                      : agentState === 'ERROR'
+                      ? 'Microphone Error'
+                      : isCallActive
+                      ? 'Call Active'
                       : 'Call Disconnected'}
                   </span>
                 </div>
@@ -780,21 +1137,34 @@ export default function VoiceAgentSimulator({
                 {isCallActive && (
                   <div className="space-y-2 pt-2">
                     <div className="grid grid-cols-3 gap-2">
-                      {/* Speak / Stop Toggle Button with continuous status */}
+                      {/* Speak / Stop Toggle Button with continuous status (Phase 6 Real State UI) */}
                       <button
                         onClick={toggleMicrophone}
+                        disabled={!isSpeechSupported || isProcessing}
                         className={`py-2 px-2 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition ${
-                          isListening
+                          agentState === 'LISTENING'
                             ? 'bg-purple-600/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/30'
-                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750'
+                            : agentState === 'ERROR'
+                            ? 'bg-rose-600/20 border-rose-500 text-rose-300'
+                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750 disabled:opacity-50'
                         }`}
                       >
-                        {isListening ? (
+                        {agentState === 'LISTENING' ? (
                           <Mic className="h-4 w-4 text-purple-400 animate-pulse" />
+                        ) : agentState === 'ERROR' ? (
+                          <AlertTriangle className="h-4 w-4 text-rose-400" />
                         ) : (
                           <MicOff className="h-4 w-4" />
                         )}
-                        <span>{isListening ? 'Stop Mic' : 'Speak'}</span>
+                        <span>
+                          {agentState === 'LISTENING'
+                            ? 'Stop Mic'
+                            : agentState === 'PROCESSING'
+                            ? 'Processing'
+                            : agentState === 'SPEAKING'
+                            ? 'Speaking'
+                            : 'Click Mic'}
+                        </span>
                       </button>
 
                       <button
@@ -900,7 +1270,7 @@ export default function VoiceAgentSimulator({
                     <PhoneCall className="h-8 w-8 text-slate-600 mb-2" />
                     <p className="text-sm font-medium">No active transcript.</p>
                     <p className="text-xs text-slate-600">
-                      Click "Start Voice Call Simulation" to establish call connection with {company?.name || 'LeadPoint AI'}.
+                      Type a message below or click "Start Voice Call Simulation" to establish call connection with {company?.name || 'LeadPoint AI'}.
                     </p>
                   </div>
                 ) : (
@@ -950,12 +1320,12 @@ export default function VoiceAgentSimulator({
                 )}
               </div>
 
-              {/* Input Box for Speech / Text Dual Mode */}
+              {/* Input Box for Speech / Text Dual Mode (Phase 2 Independent Text Chat) */}
               <div className="pt-4 border-t border-slate-800 mt-2">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    handleSendUserMessage();
+                    sendUserMessage();
                   }}
                   className="flex items-center gap-2"
                 >
@@ -963,19 +1333,21 @@ export default function VoiceAgentSimulator({
                     type="text"
                     value={currentUtterance}
                     onChange={(e) => setCurrentUtterance(e.target.value)}
-                    disabled={!isCallActive || isProcessing}
+                    disabled={isProcessing}
                     placeholder={
-                      isCallActive
-                        ? isListening
-                          ? "Microphone listening (speak or type response)..."
-                          : "Type prospect response or click 'Speak' to talk..."
-                        : "Start call to unlock transcript controls..."
+                      isProcessing
+                        ? 'AI is thinking...'
+                        : isSpeaking
+                        ? 'AI is speaking... (or type your response)'
+                        : isListening
+                        ? 'Microphone listening (speak or type response)...'
+                        : 'Type prospect response or click microphone to speak...'
                     }
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
                   />
                   <button
                     type="submit"
-                    disabled={!isCallActive || !currentUtterance.trim() || isProcessing}
+                    disabled={!currentUtterance.trim() || isProcessing}
                     className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 transition"
                   >
                     <Send className="h-4 w-4" />
