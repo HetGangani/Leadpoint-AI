@@ -2,6 +2,7 @@ import { runLeadServiceTests } from './lead-service.test';
 import { runGeminiVoiceTests } from './gemini-voice.test';
 import { runAuthMiddlewareTests } from './auth-middleware.test';
 import { runAuthPhase1Tests } from './auth.test';
+import { runCalendlyHandoffTests } from './calendly-handoff.test';
 
 async function main() {
   console.log('====================================================');
@@ -17,6 +18,7 @@ async function main() {
     await runGeminiVoiceTests(),
     await runAuthMiddlewareTests(),
     await runAuthPhase1Tests(),
+    await runCalendlyHandoffTests(),
   ];
 
   for (const suite of allSuiteResults) {

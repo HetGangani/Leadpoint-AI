@@ -410,8 +410,29 @@ export default function LeadDiscoveryPage() {
                       </div>
                     </div>
 
-                    {/* Platform & Intent Score Badges */}
-                    <div className="flex items-center space-x-3">
+                    {/* Platform & Status Badges */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {lead.status === 'CALENDLY_SENT' && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center gap-1">
+                          📱 Calendly Link Sent
+                        </span>
+                      )}
+                      {lead.status === 'BOOKED' && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
+                          📅 Meeting Booked
+                        </span>
+                      )}
+                      {lead.status === 'FOLLOW_UP_REQUIRED' && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center gap-1">
+                          ⚠️ Re-call / Follow-up Needed
+                        </span>
+                      )}
+                      {lead.status === 'INTERESTED' && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center gap-1">
+                          🔥 High Intent
+                        </span>
+                      )}
+
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-mono bg-purple-500/10 border border-purple-500/20 text-purple-300">
                         {lead.sourcePlatform}
                       </span>
@@ -450,18 +471,47 @@ export default function LeadDiscoveryPage() {
                       </div>
                     </div>
 
-                    {/* Original Post URL Link */}
-                    {lead.originalPostUrl && (
-                      <a
-                        href={lead.originalPostUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center space-x-1.5 text-blue-400 hover:text-blue-300 text-xs font-medium transition"
-                      >
-                        <span>View Original Post</span>
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    )}
+                    {/* Action Controls for Calendly / Follow-up */}
+                    <div className="flex items-center space-x-2">
+                      {lead.status === 'CALENDLY_SENT' && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              await fetch(`/api/webhooks/calendly`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ leadId: lead.id, inviteeEmail: lead.businessEmail }),
+                              });
+                              fetchLeads();
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 text-[11px] font-semibold transition"
+                          >
+                            Simulate Booking
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await fetch(`/api/leads/${lead.id}/calendly-check?flagFollowUp=true`);
+                              fetchLeads();
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-300 hover:bg-amber-600/30 text-[11px] font-semibold transition"
+                          >
+                            Flag Re-call Needed
+                          </button>
+                        </>
+                      )}
+
+                      {lead.originalPostUrl && (
+                        <a
+                          href={lead.originalPostUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center space-x-1.5 text-blue-400 hover:text-blue-300 text-xs font-medium transition"
+                        >
+                          <span>View Original Post</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

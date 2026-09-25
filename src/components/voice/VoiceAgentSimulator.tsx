@@ -128,12 +128,17 @@ export default function VoiceAgentSimulator({ initialLead }: VoiceAgentSimulator
     }
   };
 
+  const [smsDetails, setSmsDetails] = useState<any>(null);
+  const [bookingSimulated, setBookingSimulated] = useState(false);
+
   // Start Voice Call Session
   const handleStartCall = async () => {
     setIsCallActive(true);
     setCallDuration(0);
     setConversation([]);
     setIsHighIntent(false);
+    setSmsDetails(null);
+    setBookingSimulated(false);
     setWebhookResult(null);
     setCurrentStage('CONNECTING');
 
@@ -144,6 +149,7 @@ export default function VoiceAgentSimulator({ initialLead }: VoiceAgentSimulator
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          leadId: lead.id,
           leadName: lead.name,
           companyName: lead.companyName,
           userUtterance: 'Hello',
@@ -186,6 +192,7 @@ export default function VoiceAgentSimulator({ initialLead }: VoiceAgentSimulator
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          leadId: lead.id,
           leadName: lead.name,
           companyName: lead.companyName,
           userUtterance: text,
@@ -207,12 +214,42 @@ export default function VoiceAgentSimulator({ initialLead }: VoiceAgentSimulator
           setIsHighIntent(true);
         }
 
+        if (data.data.smsDetails) {
+          setSmsDetails(data.data.smsDetails);
+        }
+
         speakAgentResponse(reply);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Simulate Human Handoff request
+  const handleSimulateHandoff = async () => {
+    if (!isCallActive || isProcessing) return;
+    handleSendUserMessage('I want to speak with a human SDR and get a Calendly link.');
+  };
+
+  // Simulate lead booking on Calendly via mock webhook
+  const handleSimulateCalendlyBooking = async () => {
+    try {
+      const res = await fetch('/api/webhooks/calendly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          inviteeEmail: 'sarah@apex.com',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBookingSimulated(true);
+      }
+    } catch (err) {
+      console.error('Failed to simulate booking:', err);
     }
   };
 
@@ -458,36 +495,89 @@ export default function VoiceAgentSimulator({ initialLead }: VoiceAgentSimulator
 
               {/* In-Call Simulation Utility Actions */}
               {isCallActive && (
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  <button
-                    onClick={toggleMicrophone}
-                    className={`py-2 px-2 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition ${
-                      isListening
-                        ? 'bg-purple-600/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/30'
-                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750'
-                    }`}
-                  >
-                    {isListening ? <Mic className="h-4 w-4 text-purple-400 animate-pulse" /> : <MicOff className="h-4 w-4" />}
-                    <span>{isListening ? 'Mic On' : 'Speak'}</span>
-                  </button>
+                <div className="space-y-2 pt-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={toggleMicrophone}
+                      className={`py-2 px-2 rounded-xl border text-xs font-medium flex flex-col items-center justify-center space-y-1 transition ${
+                        isListening
+                          ? 'bg-purple-600/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/30'
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750'
+                      }`}
+                    >
+                      {isListening ? <Mic className="h-4 w-4 text-purple-400 animate-pulse" /> : <MicOff className="h-4 w-4" />}
+                      <span>{isListening ? 'Mic On' : 'Speak'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleSimulateBusy}
+                      disabled={isProcessing}
+                      className="py-2 px-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-medium flex flex-col items-center justify-center space-y-1 transition"
+                    >
+                      <Clock className="h-4 w-4 text-amber-400" />
+                      <span>Line Busy</span>
+                    </button>
+
+                    <button
+                      onClick={handleSimulateVoicemail}
+                      disabled={isProcessing}
+                      className="py-2 px-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20 text-xs font-medium flex flex-col items-center justify-center space-y-1 transition"
+                    >
+                      <MessageSquare className="h-4 w-4 text-blue-400" />
+                      <span>Voicemail</span>
+                    </button>
+                  </div>
 
                   <button
-                    onClick={handleSimulateBusy}
+                    onClick={handleSimulateHandoff}
                     disabled={isProcessing}
-                    className="py-2 px-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-medium flex flex-col items-center justify-center space-y-1 transition"
+                    className="w-full py-2 px-3 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30 text-xs font-semibold flex items-center justify-center space-x-2 transition"
                   >
-                    <Clock className="h-4 w-4 text-amber-400" />
-                    <span>Line Busy</span>
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>Ask for Human SDR & Calendly SMS</span>
                   </button>
+                </div>
+              )}
 
-                  <button
-                    onClick={handleSimulateVoicemail}
-                    disabled={isProcessing}
-                    className="py-2 px-2 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20 text-xs font-medium flex flex-col items-center justify-center space-y-1 transition"
-                  >
-                    <MessageSquare className="h-4 w-4 text-blue-400" />
-                    <span>Voicemail</span>
-                  </button>
+              {/* Real-time SMS Sent Notification Banner */}
+              {smsDetails && (
+                <div className="w-full mt-4 bg-indigo-950/80 border border-indigo-500/40 rounded-2xl p-4 text-left space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <span>Human Handoff Triggered</span>
+                    </span>
+                    <span className="text-[10px] font-mono bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded-full border border-indigo-700">
+                      SMS Status: MOCK SENT
+                    </span>
+                  </div>
+                  {smsDetails.sent ? (
+                    <>
+                      <div className="text-xs text-slate-300 font-mono">
+                        Recipient: <span className="text-emerald-400">{smsDetails.recipient}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2 rounded-xl border border-slate-800 font-mono break-all">
+                        {smsDetails.message}
+                      </div>
+                      {!bookingSimulated ? (
+                        <button
+                          onClick={handleSimulateCalendlyBooking}
+                          className="w-full mt-2 py-1.5 px-3 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 text-xs font-semibold transition flex items-center justify-center space-x-1"
+                        >
+                          <span>Simulate Lead Booking on Calendly</span>
+                        </button>
+                      ) : (
+                        <div className="text-xs text-emerald-400 font-bold bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/30 flex items-center justify-center space-x-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>Lead Status Updated: BOOKED</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-xs text-rose-400 font-medium">
+                      Unable to send booking link: {smsDetails.error || 'SMS send failed.'}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

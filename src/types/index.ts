@@ -18,6 +18,9 @@ export const LeadStatus = {
   CONTACTED: 'CONTACTED',
   INTERESTED: 'INTERESTED',
   UNRESPONSIVE: 'UNRESPONSIVE',
+  CALENDLY_SENT: 'CALENDLY_SENT',
+  BOOKED: 'BOOKED',
+  FOLLOW_UP_REQUIRED: 'FOLLOW_UP_REQUIRED',
 } as const;
 export type LeadStatus = (typeof LeadStatus)[keyof typeof LeadStatus];
 
@@ -41,6 +44,7 @@ export const CallDisposition = {
   VOICEMAIL: 'VOICEMAIL',
   FAILED: 'FAILED',
   BUSY: 'BUSY',
+  HUMAN_HANDOFF: 'HUMAN_HANDOFF',
 } as const;
 export type CallDisposition = (typeof CallDisposition)[keyof typeof CallDisposition];
 
@@ -96,6 +100,10 @@ export interface LeadWithCalls {
   relevanceScore: number;
   status: LeadStatus;
   enrichedData: EnrichedDataJson;
+  calendlySentAt?: Date | null;
+  calendlyBookedAt?: Date | null;
+  followUpRequired?: boolean;
+  followUpScheduledAt?: Date | null;
   createdAt: Date;
   voiceCalls?: VoiceCallSummary[];
 }
@@ -151,6 +159,7 @@ export interface AuditLogSummary {
 export type SupportedLocale = 'en' | 'es' | 'de' | 'hi' | 'fr';
 
 export interface AgentTurnRequest {
+  leadId?: string;
   leadName?: string;
   companyName?: string;
   prospectRole?: string;
@@ -167,11 +176,20 @@ export interface AgentTurnRequest {
 
 export interface AgentTurnResponse {
   replyText: string;
-  stage: 'FAQ' | 'QUALIFYING' | 'OBJECTION' | 'INTENT_AFFIRMED' | 'BUSY_CALLBACK' | 'VOICEMAIL_LEFT';
+  stage: 'FAQ' | 'QUALIFYING' | 'OBJECTION' | 'INTENT_AFFIRMED' | 'BUSY_CALLBACK' | 'VOICEMAIL_LEFT' | 'HUMAN_HANDOFF';
   sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
   nextSuggestedStep: string;
   isHighIntent: boolean;
   disposition: CallDisposition;
+  smsDetails?: {
+    sent: boolean;
+    provider: 'mock' | 'real';
+    message?: string;
+    recipient?: string;
+    calendlyUrl?: string;
+    status: 'HUMAN_HANDOFF_REQUESTED' | 'CALENDLY_LINK_SENT' | 'MISSING_PHONE' | 'MISSING_CALENDLY_URL' | 'SMS_FAILED';
+    error?: string;
+  };
 }
 
 export interface VoiceCallWebhookPayload {

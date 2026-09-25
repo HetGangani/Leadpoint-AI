@@ -35,9 +35,36 @@ Goal & Persona Guidelines:
    - Detect and overcome common B2B objections (e.g., "too expensive", "already have an existing vendor", "send me an email first").
    - If prospect explicitly confirms project requirements (e.g., "we want to start next month", "approved budget", "schedule a demo", "send a proposal"), express enthusiasm and mark intention.
    - If line is busy or prospect cannot talk now, politely request to log a callback for a specific time.
-   - If automated voicemail detection triggers, speak a professional 15-second voicemail leaving contact details and value proposition.
 3. Tone: Professional, warm, empathetic, confident, and concise.
 `;
+}
+
+export function isHumanHandoffRequested(text: string): boolean {
+  if (!text) return false;
+  const textLower = text.toLowerCase();
+
+  // Exclude past tense / observational statements e.g. "I spoke with a human yesterday"
+  if (/\b(spoke|talked|met|chatted) (with|to) (a|the) (human|person|agent)\b/i.test(textLower) &&
+      !/\b(want|need|can|could|please|would like|give|send)\b/i.test(textLower)) {
+    return false;
+  }
+
+  const explicitPhrases = [
+    'speak with a human', 'talk to a human', 'talk to a person', 'speak with someone',
+    'real person', 'human representative', 'connect me to an agent', 'connect me to an sdr',
+    'connect me to a person', 'send me a calendly link', 'book a call with someone', 'send calendly',
+    'hablar con un humano', 'persona real', 'hablar con una persona',
+    'mit einem menschen sprechen', 'echte person', 'mit jemandem sprechen',
+    'इंसान से बात', 'किसी से बात', 'एजेंट से बात',
+    'parler à un humain', 'vraie personne', 'parler à quelqu\'un'
+  ];
+
+  if (explicitPhrases.some((phrase) => textLower.includes(phrase))) {
+    return true;
+  }
+
+  const requestRegex = /\b(speak|talk|connect|transfer|send|book|want|need)\b.*\b(human|real person|person|sdr|agent|calendly)\b/i;
+  return requestRegex.test(textLower);
 }
 
 /**
@@ -89,6 +116,26 @@ export async function processVoiceAgentTurn(request: AgentTurnRequest): Promise<
 
   const textLower = userUtterance.toLowerCase();
 
+  // Check Human Handoff Intent FIRST
+  if (isHumanHandoffRequested(userUtterance)) {
+    const handoffResponses: Record<SupportedLocale, string> = {
+      en: `I'd be happy to connect you with our team, ${leadName}! I'm sending a booking link to your phone now so you can pick a convenient time to speak with us.`,
+      es: `¡Con gusto le conectaré con nuestro equipo, ${leadName}! Le estoy enviando un enlace de reserva a su teléfono para que elija el momento más conveniente.`,
+      de: `Ich verbinde Sie gerne mit unserem Team, ${leadName}! Ich sende Ihnen jetzt einen Buchungslink auf Ihr Telefon, damit Sie einen passenden Termin auswählen können.`,
+      hi: `मुझे आपको हमारी टीम से जोड़कर खुशी होगी, ${leadName}! मैं अभी आपके फ़ोन पर एक बुकिंग लिंक भेज रहा हूँ ताकि आप अपनी सुविधा का समय चुन सकें।`,
+      fr: `Je serais ravi de vous mettre en relation avec notre équipe, ${leadName}! Je vous envoie un lien de réservation sur votre téléphone pour choisir le moment qui vous convient.`,
+    };
+
+    return {
+      replyText: handoffResponses[locale] || handoffResponses.en,
+      stage: 'HUMAN_HANDOFF',
+      sentiment: 'POSITIVE',
+      nextSuggestedStep: '🤖 Human Handoff Requested: Dispatch SMS Calendly booking link & update Lead status.',
+      isHighIntent: true,
+      disposition: CallDisposition.HUMAN_HANDOFF,
+    };
+  }
+
   // Affirmation / High Intent detection logic
   const intentKeywords = [
     'yes', 'interested', 'budget approved', 'start next month', 'schedule a demo',
@@ -110,7 +157,7 @@ export async function processVoiceAgentTurn(request: AgentTurnRequest): Promise<
   ];
 
   let isHighIntent = false;
-  let stage: 'FAQ' | 'QUALIFYING' | 'OBJECTION' | 'INTENT_AFFIRMED' | 'BUSY_CALLBACK' | 'VOICEMAIL_LEFT' = 'QUALIFYING';
+  let stage: 'FAQ' | 'QUALIFYING' | 'OBJECTION' | 'INTENT_AFFIRMED' | 'BUSY_CALLBACK' | 'VOICEMAIL_LEFT' | 'HUMAN_HANDOFF' = 'QUALIFYING';
   let sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = 'NEUTRAL';
   let replyText = '';
   let nextSuggestedStep = '';

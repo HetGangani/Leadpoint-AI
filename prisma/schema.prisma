@@ -58,6 +58,7 @@ model CompanyProfile {
   vectorEmbedding  String?  // JSON vector embedding representation for semantic matching
   validationStatus String   @default("PENDING") // APPROVED, PENDING, REJECTED
   offerings        String   // JSON string of service offerings & value propositions
+  calendlyUrl      String?  // Configured Calendly booking URL for human handoff
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -68,26 +69,30 @@ model CompanyProfile {
 }
 
 model Lead {
-  id               String         @id @default(cuid())
-  companyProfileId String
-  companyProfile   CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
-  name             String
-  businessEmail    String
-  phone            String?
-  linkedinUrl      String?
-  companyName      String
-  industry         String
-  companySize      String
-  sourcePlatform   String
-  originalPostUrl  String?
-  postContent      String?
-  relevanceScore   Float
-  status           String         @default("NEW") // NEW, QUALIFIED, CONTACTED, INTERESTED, UNRESPONSIVE
-  enrichedData     String         // JSON string containing funding, hiring, tech_stack
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  companyProfileId    String
+  companyProfile      CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  name                String
+  businessEmail       String
+  phone               String?
+  linkedinUrl         String?
+  companyName         String
+  industry            String
+  companySize         String
+  sourcePlatform      String
+  originalPostUrl     String?
+  postContent         String?
+  relevanceScore      Float
+  status              String         @default("NEW") // NEW, QUALIFIED, CONTACTED, INTERESTED, UNRESPONSIVE, CALENDLY_SENT, BOOKED, FOLLOW_UP_REQUIRED
+  enrichedData        String         // JSON string containing funding, hiring, tech_stack
+  calendlySentAt      DateTime?      // Timestamp when Calendly SMS booking link was dispatched
+  calendlyBookedAt    DateTime?      // Timestamp when Calendly meeting was confirmed
+  followUpRequired    Boolean        @default(false) // Flagged true if Calendly not booked after handoff
+  followUpScheduledAt DateTime?      // Target timestamp for re-call / SDR follow-up
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
-  voiceCalls       VoiceCall[]
+  voiceCalls          VoiceCall[]
 
   @@index([companyProfileId])
   @@index([status])
@@ -126,7 +131,7 @@ model VoiceCall {
   summary         String
   sentiment       String
   nextBestAction  String
-  disposition     String    // INTERESTED, CALLBACK, VOICEMAIL, FAILED
+  disposition     String    // INTERESTED, CALLBACK, VOICEMAIL, FAILED, BUSY, HUMAN_HANDOFF
   audioUrl        String?
   createdAt       DateTime  @default(now())
 

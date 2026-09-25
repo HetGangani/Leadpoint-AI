@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSessionUser } from '@/lib/auth';
+import { isHumanHandoffRequested } from '@/lib/gemini-voice';
 import { VoiceCallWebhookPayload, CallDisposition, CallWebhookResult } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -63,11 +64,14 @@ export async function POST(req: NextRequest) {
       'requirement affirmed', 'affirm project requirement'
     ];
 
-    const isAffirmed = affirmationKeywords.some(kw => fullTranscriptLower.includes(kw));
+    const isHumanHandoff = isHumanHandoffRequested(fullTranscriptLower) || manualDisposition === CallDisposition.HUMAN_HANDOFF;
+    const isAffirmed = !isHumanHandoff && affirmationKeywords.some(kw => fullTranscriptLower.includes(kw));
 
     let disposition: CallDisposition = manualDisposition || CallDisposition.INTERESTED;
 
-    if (isAffirmed) {
+    if (isHumanHandoff) {
+      disposition = CallDisposition.HUMAN_HANDOFF;
+    } else if (isAffirmed) {
       disposition = CallDisposition.INTERESTED;
     } else if (fullTranscriptLower.includes('busy') || fullTranscriptLower.includes('call back')) {
       disposition = CallDisposition.BUSY;
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     let sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = 'NEUTRAL';
-    if (isAffirmed || disposition === CallDisposition.INTERESTED) {
+    if (isHumanHandoff || isAffirmed || disposition === CallDisposition.INTERESTED) {
       sentiment = 'POSITIVE';
     } else if (fullTranscriptLower.includes('not interested') || fullTranscriptLower.includes('too expensive')) {
       sentiment = 'NEGATIVE';
@@ -85,7 +89,18 @@ export async function POST(req: NextRequest) {
     let updatedLeadStatus = lead.status;
     let isHighIntentFlagged = false;
 
-    if (isAffirmed || disposition === CallDisposition.INTERESTED) {
+    if (isHumanHandoff) {
+      isHighIntentFlagged = true;
+      updatedLeadStatus = 'CALENDLY_SENT';
+
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          status: 'CALENDLY_SENT',
+          calendlySentAt: lead.calendlySentAt || new Date(),
+        },
+      });
+    } else if (isAffirmed || disposition === CallDisposition.INTERESTED) {
       isHighIntentFlagged = true;
       updatedLeadStatus = 'INTERESTED';
 
@@ -99,7 +114,9 @@ export async function POST(req: NextRequest) {
 
     const summaryBulletPoints = [
       `• Executed voice discovery call with ${lead.name} (${lead.companyName}, ${lead.industry}).`,
-      isAffirmed
+      isHumanHandoff
+        ? `• 📱 Prospect requested Human Handoff / SDR interaction. Calendly SMS link dispatched.`
+        : isAffirmed
         ? `• 🔥 Prospect explicitly affirmed project requirements and requested next steps.`
         : `• Explored cloud modernization roadmap & qualified timeline.`,
       disposition === CallDisposition.BUSY
@@ -112,7 +129,9 @@ export async function POST(req: NextRequest) {
     const summaryText = summaryBulletPoints.join('\n');
 
     let nextBestAction = 'Send follow-up introduction email with company overview deck.';
-    if (isAffirmed) {
+    if (isHumanHandoff) {
+      nextBestAction = '📱 HUMAN HANDOFF: Calendly SMS dispatched. Await lead booking or trigger follow-up if unbooked.';
+    } else if (isAffirmed) {
       nextBestAction = '🔥 HIGH INTENT: Send calendar invite for 20-min Solution Architecture Demo & draft preliminary proposal.';
     } else if (disposition === CallDisposition.BUSY) {
       nextBestAction = 'Schedule priority SDR callback in 4 hours.';
