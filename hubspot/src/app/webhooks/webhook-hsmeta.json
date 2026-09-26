@@ -50,6 +50,18 @@
           "active": true
         },
         {
+          "subscriptionType": "object.propertyChange",
+          "objectType": "contact",
+          "propertyName": "jobtitle",
+          "active": true
+        },
+        {
+          "subscriptionType": "object.propertyChange",
+          "objectType": "contact",
+          "propertyName": "website",
+          "active": true
+        },
+        {
           "subscriptionType": "object.deletion",
           "objectType": "contact",
           "active": true

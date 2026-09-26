@@ -93,6 +93,10 @@ model Lead {
   smsMessageId        String?        // Provider unique message ID / SID
   followUpRequired    Boolean        @default(false) // Flagged true if Calendly not booked after handoff
   followUpScheduledAt DateTime?      // Target timestamp for re-call / SDR follow-up
+  hubspotContactId    String?        // HubSpot Contact ID (vid / objectId)
+  crmProvider         String?        // e.g. "hubspot"
+  crmLastSyncedAt     DateTime?      // Timestamp of last successful CRM sync
+  crmSyncStatus       String?        // "SYNCED", "ERROR", "PENDING", "DELETED_IN_CRM"
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
@@ -102,6 +106,8 @@ model Lead {
   @@index([status])
   @@index([relevanceScore])
   @@index([businessEmail])
+  @@index([hubspotContactId])
+  @@index([crmSyncStatus])
 }
 
 model Campaign {
@@ -197,3 +203,15 @@ model AuditLog {
   @@index([action])
   @@index([timestamp])
 }
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  provider    String   @default("hubspot") // "hubspot", "calendly"
+  eventType   String?
+  processedAt DateTime @default(now())
+  metadata    String?  // JSON string
+
+  @@index([provider, eventId])
+}
+

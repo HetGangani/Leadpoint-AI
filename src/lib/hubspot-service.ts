@@ -568,3 +568,768 @@ export async function disconnectHubSpot(userId: string): Promise<{ success: bool
 
   return { success: true };
 }
+
+/**
+ * Retrieves a valid, unexpired HubSpot access token for a given user.
+ * Automatically refreshes expired or expiring tokens using the stored refresh token.
+ */
+export async function getValidHubSpotAccessToken(userId: string): Promise<string> {
+  if (!userId) {
+    throw new Error('userId is required to retrieve HubSpot access token');
+  }
+
+  const account = await prisma.account.findFirst({
+    where: {
+      userId,
+      provider: 'hubspot',
+    },
+  });
+
+  if (!account || !account.accessTokenEncrypted) {
+    throw new Error('No connected HubSpot account found for user');
+  }
+
+  // Refresh if token expires within 5 minutes or is already expired
+  const bufferMs = 5 * 60 * 1000;
+  const isExpiringSoon = account.expiresAt
+    ? account.expiresAt.getTime() - bufferMs < Date.now()
+    : false;
+
+  if (!isExpiringSoon) {
+    return decryptToken(account.accessTokenEncrypted);
+  }
+
+  if (!account.refreshTokenEncrypted) {
+    return decryptToken(account.accessTokenEncrypted);
+  }
+
+  try {
+    const plainRefreshToken = decryptToken(account.refreshTokenEncrypted);
+    const freshTokens = await refreshHubSpotToken(plainRefreshToken);
+    const updatedAccount = await saveHubSpotConnection({
+      userId,
+      tokens: freshTokens,
+      portalId: account.providerAccountId,
+    });
+    return decryptToken(updatedAccount.accessTokenEncrypted!);
+  } catch (err: any) {
+    console.error(`[HubSpot Token Auto-Refresh Error] user ${userId}:`, err?.message || err);
+    return decryptToken(account.accessTokenEncrypted);
+  }
+}
+
+export interface HubSpotContactProperties {
+  email?: string;
+  firstname?: string;
+  lastname?: string;
+  phone?: string;
+  company?: string;
+  jobtitle?: string;
+  website?: string;
+  hs_lead_status?: string;
+  [key: string]: any;
+}
+
+export interface HubSpotContactRecord {
+  id: string;
+  properties: HubSpotContactProperties;
+  createdAt?: string;
+  updatedAt?: string;
+  archived?: boolean;
+}
+
+/**
+ * Fetches a contact by ID from HubSpot CRM v3 API.
+ */
+export async function getHubSpotContact(
+  contactId: string,
+  accessToken: string
+): Promise<HubSpotContactRecord | null> {
+  if (!contactId || !accessToken) {
+    return null;
+  }
+
+  const properties = [
+    'email',
+    'firstname',
+    'lastname',
+    'phone',
+    'company',
+    'jobtitle',
+    'website',
+    'hs_lead_status',
+    'createdate',
+    'lastmodifieddate',
+  ].join(',');
+
+  const url = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=${properties}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    let errDetail = `Status ${response.status}`;
+    try {
+      const errJson = await response.json();
+      errDetail = errJson.message || errDetail;
+    } catch {}
+    throw new Error(`Failed to fetch contact from HubSpot: ${errDetail}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Searches contacts in HubSpot CRM v3 API.
+ */
+export async function searchHubSpotContacts(
+  query: string,
+  accessToken: string,
+  limit = 10
+): Promise<HubSpotContactRecord[]> {
+  if (!query || !accessToken) return [];
+
+  const url = 'https://api.hubapi.com/crm/v3/objects/contacts/search';
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query,
+      limit,
+      properties: [
+        'email',
+        'firstname',
+        'lastname',
+        'phone',
+        'company',
+        'jobtitle',
+        'website',
+        'hs_lead_status',
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+  const data = await response.json();
+  return data.results || [];
+}
+
+/**
+ * Creates a contact in HubSpot CRM v3 API.
+ */
+export async function createHubSpotContact(
+  properties: Record<string, string>,
+  accessToken: string
+): Promise<HubSpotContactRecord> {
+  const url = 'https://api.hubapi.com/crm/v3/objects/contacts';
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ properties }),
+  });
+
+  if (!response.ok) {
+    let errDetail = `Status ${response.status}`;
+    try {
+      const errJson = await response.json();
+      errDetail = errJson.message || errDetail;
+    } catch {}
+    throw new Error(`Failed to create HubSpot contact: ${errDetail}`);
+  }
+  return response.json();
+}
+
+/**
+ * Updates a contact in HubSpot CRM v3 API.
+ */
+export async function updateHubSpotContact(
+  contactId: string,
+  properties: Record<string, string>,
+  accessToken: string
+): Promise<HubSpotContactRecord> {
+  const url = `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ properties }),
+  });
+
+  if (!response.ok) {
+    let errDetail = `Status ${response.status}`;
+    try {
+      const errJson = await response.json();
+      errDetail = errJson.message || errDetail;
+    } catch {}
+    throw new Error(`Failed to update HubSpot contact: ${errDetail}`);
+  }
+  return response.json();
+}
+
+/**
+ * Constant-time string equality helper to mitigate timing attacks.
+ */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  try {
+    const bufA = Buffer.from(a, 'utf8');
+    const bufB = Buffer.from(b, 'utf8');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
+export interface VerifySignatureOptions {
+  method: string;
+  requestUrl: string;
+  rawBody: string;
+  signatureHeader?: string | null;
+  timestampHeader?: string | null;
+  clientSecret?: string;
+  maxTimestampSkewMs?: number;
+}
+
+/**
+ * Verifies HubSpot Webhook v3 signature using HMAC-SHA256 and replay protection.
+ * Format: HMAC-SHA256(ClientSecret, Method + URI + Body + Timestamp) -> Base64
+ */
+export function verifyHubSpotWebhookSignature(options: VerifySignatureOptions): {
+  valid: boolean;
+  error?: string;
+} {
+  const {
+    method,
+    requestUrl,
+    rawBody,
+    signatureHeader,
+    timestampHeader,
+    clientSecret = process.env.HUBSPOT_CLIENT_SECRET,
+    maxTimestampSkewMs = 300000, // 5 minutes
+  } = options;
+
+  if (!signatureHeader) {
+    return { valid: false, error: 'Missing X-HubSpot-Signature-v3 header' };
+  }
+
+  if (!timestampHeader) {
+    return { valid: false, error: 'Missing X-HubSpot-Request-Timestamp header' };
+  }
+
+  const timestampNum = Number(timestampHeader);
+  if (isNaN(timestampNum)) {
+    return { valid: false, error: 'Invalid X-HubSpot-Request-Timestamp format' };
+  }
+
+  const now = Date.now();
+  if (Math.abs(now - timestampNum) > maxTimestampSkewMs) {
+    return {
+      valid: false,
+      error: 'Webhook request timestamp is outside the allowed 5-minute replay window',
+    };
+  }
+
+  if (!clientSecret) {
+    return { valid: false, error: 'HUBSPOT_CLIENT_SECRET is not configured on server' };
+  }
+
+  // Candidate URLs to test against (supports proxy/ngrok target URL configuration)
+  const candidateUrls = [requestUrl];
+  if (process.env.HUBSPOT_WEBHOOK_URL && process.env.HUBSPOT_WEBHOOK_URL !== requestUrl) {
+    candidateUrls.push(process.env.HUBSPOT_WEBHOOK_URL);
+  }
+
+  // Also check without query string if present
+  for (const cUrl of [...candidateUrls]) {
+    try {
+      const parsed = new URL(cUrl);
+      if (parsed.search) {
+        candidateUrls.push(`${parsed.origin}${parsed.pathname}`);
+      }
+    } catch {}
+  }
+
+  for (const urlToVerify of candidateUrls) {
+    const dataToSign = `${method.toUpperCase()}${urlToVerify}${rawBody}${timestampHeader}`;
+    const calculatedSignature = crypto
+      .createHmac('sha256', clientSecret)
+      .update(dataToSign, 'utf8')
+      .digest('base64');
+
+    if (timingSafeEqualStr(calculatedSignature, signatureHeader.trim())) {
+      return { valid: true };
+    }
+  }
+
+  return { valid: false, error: 'Invalid HubSpot webhook signature' };
+}
+
+/**
+ * Maps HubSpot hs_lead_status to LeadPoint-AI LeadStatus enum string.
+ */
+export function mapHubSpotStatusToLeadStatus(hsStatus?: string | null): string {
+  if (!hsStatus) return 'NEW';
+  const s = hsStatus.toUpperCase().trim();
+  switch (s) {
+    case 'NEW':
+    case 'OPEN':
+      return 'NEW';
+    case 'IN_PROGRESS':
+    case 'CONNECTED':
+    case 'ATTEMPTED_TO_CONTACT':
+      return 'CONTACTED';
+    case 'OPEN_DEAL':
+      return 'INTERESTED';
+    case 'UNQUALIFIED':
+      return 'UNRESPONSIVE';
+    case 'QUALIFIED':
+      return 'QUALIFIED';
+    case 'BAD_TIMING':
+      return 'FOLLOW_UP_REQUIRED';
+    default:
+      return 'NEW';
+  }
+}
+
+export interface HubSpotWebhookEvent {
+  eventId?: string | number;
+  subscriptionId?: number;
+  portalId?: number | string;
+  appId?: number;
+  occurredAt?: number;
+  subscriptionType: string;
+  attemptNumber?: number;
+  objectId: number | string;
+  propertyName?: string;
+  propertyValue?: string | null;
+  changeSource?: string;
+  changeFlag?: string;
+  [key: string]: any;
+}
+
+export interface ProcessEventsResult {
+  totalEvents: number;
+  processed: number;
+  skipped: number;
+  createdLeads: number;
+  updatedLeads: number;
+  deletedLeads: number;
+  errors: string[];
+}
+
+/**
+ * Processes incoming HubSpot webhook events with tenant isolation, durable idempotency,
+ * and atomic database state updates.
+ */
+export async function processHubSpotWebhookEvents(
+  events: HubSpotWebhookEvent[],
+  options?: { rawBody?: string }
+): Promise<ProcessEventsResult> {
+  const result: ProcessEventsResult = {
+    totalEvents: events.length,
+    processed: 0,
+    skipped: 0,
+    createdLeads: 0,
+    updatedLeads: 0,
+    deletedLeads: 0,
+    errors: [],
+  };
+
+  for (const event of events) {
+    try {
+      if (!event.objectId) {
+        result.skipped++;
+        result.errors.push('Event missing objectId (contact ID)');
+        continue;
+      }
+
+      const contactId = String(event.objectId);
+      const portalId = event.portalId
+        ? String(event.portalId)
+        : process.env.HUBSPOT_ACCOUNT_ID;
+
+      if (!portalId) {
+        result.skipped++;
+        result.errors.push(`Missing portalId for contact ${contactId}`);
+        continue;
+      }
+
+      // 1. Durable Idempotency Check
+      const eventKey = String(
+        event.eventId ||
+          `hubspot-${portalId}-${contactId}-${event.subscriptionType}-${event.occurredAt || ''}`
+      );
+
+      const existingEvent = await prisma.webhookEvent.findUnique({
+        where: { eventId: eventKey },
+      });
+
+      if (existingEvent) {
+        result.skipped++;
+        continue;
+      }
+
+      // 2. Strict Tenant Isolation: Look up connected HubSpot integration account
+      const account = await prisma.account.findFirst({
+        where: {
+          provider: 'hubspot',
+          providerAccountId: portalId,
+        },
+        include: {
+          user: {
+            include: {
+              companyProfile: true,
+            },
+          },
+        },
+      });
+
+      if (!account) {
+        await prisma.auditLog.create({
+          data: {
+            action: 'HUBSPOT_WEBHOOK_UNKNOWN_PORTAL',
+            metadata: JSON.stringify({
+              portalId,
+              contactId,
+              subscriptionType: event.subscriptionType,
+              receivedAt: new Date().toISOString(),
+            }),
+          },
+        });
+        result.skipped++;
+        result.errors.push(`No local integration found for HubSpot portal ID: ${portalId}`);
+        continue;
+      }
+
+      const userId = account.userId;
+      let companyProfileId = account.user?.companyProfile?.id;
+      if (!companyProfileId) {
+        const profile = await prisma.companyProfile.findUnique({
+          where: { userId },
+        });
+        companyProfileId = profile?.id;
+      }
+
+      if (!companyProfileId) {
+        result.skipped++;
+        result.errors.push(`User ${userId} does not have an active CompanyProfile`);
+        continue;
+      }
+
+      const subType = (event.subscriptionType || '').toLowerCase();
+
+      // 3. Handle Contact Deletion (Soft marking, preserves call/campaign/audit history)
+      if (subType.includes('deletion')) {
+        const existingLead = await prisma.lead.findFirst({
+          where: {
+            companyProfileId,
+            hubspotContactId: contactId,
+          },
+        });
+
+        if (existingLead) {
+          await prisma.$transaction([
+            prisma.lead.update({
+              where: { id: existingLead.id },
+              data: {
+                crmSyncStatus: 'DELETED_IN_CRM',
+                crmLastSyncedAt: new Date(),
+              },
+            }),
+            prisma.webhookEvent.create({
+              data: {
+                eventId: eventKey,
+                provider: 'hubspot',
+                eventType: event.subscriptionType,
+                processedAt: new Date(),
+                metadata: JSON.stringify({
+                  portalId,
+                  contactId,
+                  action: 'DELETED_IN_CRM',
+                }),
+              },
+            }),
+            prisma.auditLog.create({
+              data: {
+                userId,
+                action: 'HUBSPOT_CONTACT_DELETED',
+                metadata: JSON.stringify({
+                  leadId: existingLead.id,
+                  hubspotContactId: contactId,
+                  portalId,
+                }),
+              },
+            }),
+          ]);
+          result.deletedLeads++;
+          result.processed++;
+        } else {
+          // Record idempotency even if lead wasn't found
+          await prisma.webhookEvent.create({
+            data: {
+              eventId: eventKey,
+              provider: 'hubspot',
+              eventType: event.subscriptionType,
+              processedAt: new Date(),
+              metadata: JSON.stringify({ portalId, contactId, notFound: true }),
+            },
+          });
+          result.skipped++;
+        }
+        continue;
+      }
+
+      // 4. Handle Contact Restore
+      if (subType.includes('restore')) {
+        const existingLead = await prisma.lead.findFirst({
+          where: {
+            companyProfileId,
+            hubspotContactId: contactId,
+          },
+        });
+
+        if (existingLead) {
+          await prisma.$transaction([
+            prisma.lead.update({
+              where: { id: existingLead.id },
+              data: {
+                crmSyncStatus: 'SYNCED',
+                crmLastSyncedAt: new Date(),
+              },
+            }),
+            prisma.webhookEvent.create({
+              data: {
+                eventId: eventKey,
+                provider: 'hubspot',
+                eventType: event.subscriptionType,
+                processedAt: new Date(),
+                metadata: JSON.stringify({ portalId, contactId, action: 'RESTORED' }),
+              },
+            }),
+            prisma.auditLog.create({
+              data: {
+                userId,
+                action: 'HUBSPOT_CONTACT_RESTORED',
+                metadata: JSON.stringify({
+                  leadId: existingLead.id,
+                  hubspotContactId: contactId,
+                  portalId,
+                }),
+              },
+            }),
+          ]);
+          result.updatedLeads++;
+          result.processed++;
+        } else {
+          result.skipped++;
+        }
+        continue;
+      }
+
+      // 5. Contact Creation or Property Change
+      // Retrieve full contact details from HubSpot if needed
+      let contactData: HubSpotContactRecord | null = null;
+      try {
+        const accessToken = await getValidHubSpotAccessToken(userId);
+        contactData = await getHubSpotContact(contactId, accessToken);
+      } catch (err: any) {
+        console.warn(`[HubSpot Webhook] Failed to fetch contact ${contactId} from API:`, err?.message || err);
+      }
+
+      const props: HubSpotContactProperties = contactData?.properties || {};
+
+      // Overlay specific property from event if available
+      if (event.propertyName && event.propertyValue !== undefined) {
+        props[event.propertyName] = event.propertyValue;
+      }
+
+      // Locate existing lead: Primary by hubspotContactId, Secondary by businessEmail
+      let existingLead = await prisma.lead.findFirst({
+        where: {
+          companyProfileId,
+          hubspotContactId: contactId,
+        },
+      });
+
+      if (!existingLead && props.email) {
+        const emailMatches = await prisma.lead.findMany({
+          where: {
+            companyProfileId,
+            businessEmail: props.email.toLowerCase().trim(),
+          },
+        });
+        if (emailMatches.length === 1) {
+          existingLead = emailMatches[0];
+        }
+      }
+
+      if (existingLead) {
+        // Update existing lead
+        const updateData: any = {
+          hubspotContactId: contactId,
+          crmProvider: 'hubspot',
+          crmLastSyncedAt: new Date(),
+          crmSyncStatus: 'SYNCED',
+        };
+
+        if (props.email && props.email.trim()) {
+          updateData.businessEmail = props.email.toLowerCase().trim();
+        }
+        if (props.phone && props.phone.trim()) {
+          updateData.phone = props.phone.trim();
+        }
+        if (props.company && props.company.trim()) {
+          updateData.companyName = props.company.trim();
+        }
+
+        if (props.firstname || props.lastname) {
+          const first = props.firstname || '';
+          const last = props.lastname || '';
+          const combined = `${first} ${last}`.trim();
+          if (combined) updateData.name = combined;
+        }
+
+        if (props.hs_lead_status) {
+          updateData.status = mapHubSpotStatusToLeadStatus(props.hs_lead_status);
+        }
+
+        // Update enrichedData if jobtitle or website provided
+        if (props.jobtitle || props.website) {
+          let currentEnriched: any = {};
+          try {
+            currentEnriched = JSON.parse(existingLead.enrichedData || '{}');
+          } catch {}
+          if (props.jobtitle) currentEnriched.jobTitle = props.jobtitle;
+          if (props.website) currentEnriched.website = props.website;
+          updateData.enrichedData = JSON.stringify(currentEnriched);
+        }
+
+        await prisma.$transaction([
+          prisma.lead.update({
+            where: { id: existingLead.id },
+            data: updateData,
+          }),
+          prisma.webhookEvent.create({
+            data: {
+              eventId: eventKey,
+              provider: 'hubspot',
+              eventType: event.subscriptionType,
+              processedAt: new Date(),
+              metadata: JSON.stringify({
+                portalId,
+                contactId,
+                leadId: existingLead.id,
+                action: 'UPDATED',
+              }),
+            },
+          }),
+          prisma.auditLog.create({
+            data: {
+              userId,
+              action: 'HUBSPOT_CONTACT_UPDATED',
+              metadata: JSON.stringify({
+                leadId: existingLead.id,
+                hubspotContactId: contactId,
+                portalId,
+                updatedFields: Object.keys(updateData),
+              }),
+            },
+          }),
+        ]);
+
+        result.updatedLeads++;
+        result.processed++;
+      } else {
+        // Create new Lead
+        const rawEmail = (props.email || '').toLowerCase().trim();
+        const first = props.firstname || '';
+        const last = props.lastname || '';
+        const name = `${first} ${last}`.trim() || rawEmail.split('@')[0] || `HubSpot Contact ${contactId}`;
+        const companyName = props.company?.trim() || 'Unknown Company';
+        const phone = props.phone?.trim() || null;
+        const status = mapHubSpotStatusToLeadStatus(props.hs_lead_status);
+
+        const enrichedData = JSON.stringify({
+          jobTitle: props.jobtitle || 'Contact',
+          website: props.website || '',
+          source: 'HubSpot Dynamic Webhook Sync',
+          importedAt: new Date().toISOString(),
+        });
+
+        // Initial relevanceScore is set to the application baseline default (0.85),
+        // consistent with lead-service.ts, prior to AI qualification execution in Phase 4.
+        const baselineScore = 0.85;
+
+        await prisma.$transaction([
+          prisma.lead.create({
+            data: {
+              companyProfileId,
+              name,
+              businessEmail: rawEmail || `hubspot-${contactId}@leadpoint.internal`,
+              phone,
+              companyName,
+              industry: 'Technology & Services',
+              companySize: 'Unknown',
+              sourcePlatform: 'HubSpot CRM',
+              relevanceScore: baselineScore,
+              status,
+              enrichedData,
+              hubspotContactId: contactId,
+              crmProvider: 'hubspot',
+              crmLastSyncedAt: new Date(),
+              crmSyncStatus: 'SYNCED',
+            },
+          }),
+          prisma.webhookEvent.create({
+            data: {
+              eventId: eventKey,
+              provider: 'hubspot',
+              eventType: event.subscriptionType,
+              processedAt: new Date(),
+              metadata: JSON.stringify({
+                portalId,
+                contactId,
+                action: 'CREATED',
+              }),
+            },
+          }),
+          prisma.auditLog.create({
+            data: {
+              userId,
+              action: 'HUBSPOT_CONTACT_CREATED',
+              metadata: JSON.stringify({
+                hubspotContactId: contactId,
+                portalId,
+                name,
+              }),
+            },
+          }),
+        ]);
+
+        result.createdLeads++;
+        result.processed++;
+      }
+    } catch (err: any) {
+      console.error('[HubSpot Webhook Event Processing Error]:', err?.message || err);
+      result.errors.push(err?.message || String(err));
+    }
+  }
+
+  return result;
+}
+
